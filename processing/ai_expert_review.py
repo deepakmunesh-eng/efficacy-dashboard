@@ -19,8 +19,10 @@ Requires env vars:
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import re
+import socket
 import time
 import urllib.error
 import urllib.request
@@ -51,6 +53,33 @@ _CACHE_TTL   = 86400 * 7          # 7 days — re-generate when teacher reviews 
 # The v2 read endpoints paginate server-side and return the flat records list as
 # `data`; the gateway wraps that as { data: [...] }. _gateway_post unwraps one
 # level so callers get the list directly (mirrors the studio's learnosityRead()).
+#
+# The gateway sits behind an IP allowlist and is dual-stack. The IP we whitelist
+# (Railway's static egress IP) is IPv4, so we force every gateway request over
+# IPv4 — a dual-stack host might otherwise egress over IPv6 with a non-whitelisted
+# (and rotating) address and hit "IP not whitelisted".
+
+class _IPv4HTTPSConnection(http.client.HTTPSConnection):
+    def connect(self):
+        af, socktype, proto, _canon, sa = socket.getaddrinfo(
+            self.host, self.port, socket.AF_INET, socket.SOCK_STREAM
+        )[0]
+        sock = socket.socket(af, socktype, proto)
+        if self.timeout is not None and self.timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
+            sock.settimeout(self.timeout)
+        if self.source_address:
+            sock.bind(self.source_address)
+        sock.connect(sa)
+        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+
+
+class _IPv4HTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        return self.do_open(_IPv4HTTPSConnection, req)
+
+
+_IPV4_OPENER = urllib.request.build_opener(_IPv4HTTPSHandler())
+
 
 def _gateway_post(path: str, payload: dict):
     if not DATA_GATEWAY_BASE_URL or not DATA_GATEWAY_TOKEN:
@@ -66,7 +95,8 @@ def _gateway_post(path: str, payload: dict):
     req = urllib.request.Request(DATA_GATEWAY_BASE_URL, data=body, method="POST")
     req.add_header("Authorization", f"Bearer {DATA_GATEWAY_TOKEN}")
     req.add_header("Content-Type", "application/json")
-    with urllib.request.urlopen(req, timeout=25) as resp:
+    # Force IPv4 (see note above) so the whitelisted static IP is the source.
+    with _IPV4_OPENER.open(req, timeout=25) as resp:
         result = json.loads(resp.read().decode("utf-8"))
     if isinstance(result, dict) and "data" in result:
         return result["data"]

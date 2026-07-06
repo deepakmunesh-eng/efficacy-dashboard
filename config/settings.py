@@ -57,10 +57,32 @@ LEARNOSITY_VIEWER_URL = os.getenv(
     "LEARNOSITY_VIEWER_URL",
     "https://pretty-compassion-production.up.railway.app/#",
 )
-RAILWAY_BACKEND_URL = os.getenv(
-    "RAILWAY_BACKEND_URL",
-    "https://curriculum-studio-k-8-production.up.railway.app",
+
+# On Railway, use private internal networking for service-to-service calls
+# (no egress, lower latency, bypasses the public load balancer).
+# RAILWAY_ENVIRONMENT is set automatically by the Railway platform.
+_on_railway = bool(os.getenv("RAILWAY_ENVIRONMENT", ""))
+_default_backend = (
+    "http://curriculum-studio-k-8.railway.internal"
+    if _on_railway
+    else "https://curriculum-studio-k-8-production.up.railway.app"
 )
+RAILWAY_BACKEND_URL = os.getenv("RAILWAY_BACKEND_URL", _default_backend)
+
+# ── Cuemath data gateway (Learnosity item content) ────────────────────────────
+# All Learnosity reads go through the gateway (proxies to the LEARNOSITY service).
+# Set both in .env (local) and in the Railway service Variables (production).
+DATA_GATEWAY_BASE_URL    = os.getenv("DATA_GATEWAY_BASE_URL", "")
+DATA_GATEWAY_TOKEN       = os.getenv("DATA_GATEWAY_TOKEN", "")
+LEARNOSITY_MS_DOMAIN_URL = os.getenv("LEARNOSITY_MS_DOMAIN_URL", "leap.cuemath.com")
+
+# ── Cuemath LLM gateway (AI Expert Review synthesis) ──────────────────────────
+# The Claude call routes through the LiteLLM proxy (fronting Bedrock), which
+# exposes an Anthropic-shaped /v1/messages endpoint with virtual-key auth —
+# no direct Anthropic key. Set LLM_MODEL to a model alias the gateway exposes.
+LLM_GATEWAY_BASE_URL = os.getenv("LLM_GATEWAY_BASE_URL", "https://llm-gateway.cuemath.com")
+LLM_API_KEY          = os.getenv("LLM_API_KEY", "")
+LLM_MODEL            = os.getenv("LLM_MODEL", "claude-sonnet-4-6")
 
 # ── App ────────────────────────────────────────────────────────────────────────
 _cache_env = os.getenv("CACHE_DIR", "")

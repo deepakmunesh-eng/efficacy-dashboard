@@ -9,3 +9,10 @@ __pycache__/
 dist/
 build/
 .DS_Store
+
+# Vendored studio extract / archives — not part of this app
+curriculum-studio-k-8-master/
+_studio_extract/
+*.zip
+package-lock.json.txt
+package.json.txt

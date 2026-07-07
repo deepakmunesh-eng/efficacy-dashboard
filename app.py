@@ -64,6 +64,8 @@ def process_all_lessons(force: bool = False) -> dict:
     from utils.helpers import normalize_name
     from processing.flow_b import _BACKFILL_FIELDS
     from data.learnosity_client import _fetch_from_supabase, _fallback
+    from processing.ai_expert_review import generate_ai_expert_review
+    from data.ai_review_reader import fetch_ai_reviews as _fetch_ai_doc_reviews
 
     progress = st.progress(0, text="Fetching lesson reviews from Google Sheets…")
 
@@ -235,6 +237,31 @@ def process_all_lessons(force: bool = False) -> dict:
     # ── 4. Batch write results ────────────────────────────────────────────────
     if new_results:
         bulk_store_results(new_results, new_hashes)
+
+    # ── 5. AI Expert Reviews for Complete lessons (cached, parallel) ──────────
+    complete_refs = [
+        ref for ref, res in results.items()
+        if res.get("status") == "Complete" and not res.get("ai_expert_review")
+    ]
+    if complete_refs:
+        progress.progress(95, text=f"Generating AI expert reviews for {len(complete_refs)} lesson(s)…")
+        try:
+            ai_doc_reviews = _fetch_ai_doc_reviews()
+
+            def _run_ai(ref: str):
+                res = results[ref]
+                review = generate_ai_expert_review(
+                    res, res.get("flow_a_results", []), ai_doc_reviews
+                )
+                return ref, review
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+                ai_futures = list(pool.map(_run_ai, complete_refs))
+
+            for ref, ai_review in ai_futures:
+                results[ref]["ai_expert_review"] = ai_review
+        except Exception as exc:
+            st.warning(f"AI expert reviews skipped: {exc}")
 
     progress.progress(100, text="Done.")
     time.sleep(0.2)

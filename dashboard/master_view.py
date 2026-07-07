@@ -358,7 +358,13 @@ def render_master_view(all_results: dict, on_select_lesson) -> None:
         st.info("No lessons yet — click **Refresh Data** in the sidebar.")
         return
 
-    df = _build_df(all_results)
+    # Rebuild DataFrame only when the results dict is replaced (after Refresh).
+    # id() is stable across reruns triggered by widget interactions.
+    results_id = id(all_results)
+    if st.session_state.get("_master_df_id") != results_id:
+        st.session_state["_master_df"]    = _build_df(all_results)
+        st.session_state["_master_df_id"] = results_id
+    df = st.session_state["_master_df"]
 
     nav_program = st.session_state.get("nav_program")
     nav_grade   = st.session_state.get("nav_grade")

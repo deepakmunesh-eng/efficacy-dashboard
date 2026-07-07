@@ -1,0 +1,5 @@
+# Reference material / not part of the deployed app — keep out of railway up uploads
+_studio_extract/
+*.zip
+package.json.txt
+package-lock.json.txt

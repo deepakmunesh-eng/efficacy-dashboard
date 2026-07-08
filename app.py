@@ -65,9 +65,10 @@ def _check_credentials() -> list[str]:
 
 
 # Bump this when scoring/gating logic changes so cached results are recomputed
-# on the next refresh (no force needed). v3: each learning item rated from its
-# own reviews (no per-item Pending); lesson Complete when 3 teachers reviewed it.
-_LOGIC_VERSION = "v3"
+# on the next refresh (no force needed). v4: fixed merged-cell data loss —
+# continuation item rows (003, 004…) were dropped in dedup, so each item now
+# gets all its teacher reviews (most items go from ~1 to 3+ teachers).
+_LOGIC_VERSION = "v4"
 
 
 # ── Core pipeline ─────────────────────────────────────────────────────────────

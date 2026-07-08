@@ -45,11 +45,17 @@ def deduplicate_reviews(rows: list[dict]) -> list[dict]:
 
     df = pd.DataFrame(rows)
 
-    # Forward-fill lesson-header columns (populated only on first item row)
-    header_cols = ["activity_ref", "grade", "chapter", "lesson", "reviewer_name", "reviewer_phone"]
+    # Forward-fill the merged-cell block columns. In the sheet, each teacher's
+    # review is a block: activity/reviewer/DATE appear only on the first row
+    # (item 002); the continuation rows (items 003, 004…) leave them blank.
+    # review_date MUST be filled too — it's part of the dedup key below, and
+    # without it the continuation rows carry a blank date, fail to match the
+    # teacher's dated key, and get silently dropped (losing all items but 002).
+    header_cols = ["activity_ref", "grade", "chapter", "lesson",
+                   "reviewer_name", "reviewer_phone", "review_date"]
     for col in header_cols:
         if col in df.columns:
-            df[col] = df[col].replace("", pd.NA).ffill()
+            df[col] = df[col].replace("", pd.NA).ffill().fillna("")
 
     df["_norm_name"] = df["reviewer_name"].apply(normalize_name)
 

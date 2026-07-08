@@ -1,5 +1,8 @@
 # Reference material / not part of the deployed app — keep out of railway up uploads
 _studio_extract/
+curriculum-studio-k-8-master/
 *.zip
 package.json.txt
 package-lock.json.txt
+# Large review PDFs — the runtime uses data/learning_review_reference.md (+docx fallback)
+review files/*.pdf

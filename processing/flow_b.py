@@ -159,17 +159,11 @@ def run_flow_b(
         classroom_score = round(sum(cr_scores) / len(cr_scores), 2)
 
     # ── Section ratings ───────────────────────────────────────────────────────
+    # The learning section is rated as an aggregate of the individual item
+    # ratings (each item is rated from whatever teacher reviews it has).
     learning_summary = _build_section_summary(
         "Learning", learning_score, teachers, "understanding_details", "understanding"
     )
-    if not learning_complete:
-        # Withhold a confident rating while some items are still under review.
-        learning_summary["rating"] = "Pending"
-        learning_summary["rationale"] = (
-            f"{rated_items} of {total_items_la} learning item(s) fully reviewed; "
-            f"{learning_pending} still awaiting 3 reviews. "
-            "Section rating withheld until every item is reviewed."
-        )
 
     section_ratings: dict = {
         "learning": learning_summary,
@@ -236,16 +230,6 @@ def run_flow_b(
         override_rationale = (
             "Majority of learning items rated Bad by Flow A. "
             "Final rating capped at Average per spec constraint."
-        )
-
-    # If the learning section isn't fully reviewed, we cannot finalise the lesson
-    # — don't present a Good/Average built on unreviewed items.
-    if not learning_complete:
-        final_rating = "Pending"
-        override_applied = True
-        override_rationale = (
-            f"{learning_pending} learning item(s) still awaiting 3 reviews — "
-            "final rating withheld until the learning section is complete."
         )
 
     # ── Summary text ──────────────────────────────────────────────────────────

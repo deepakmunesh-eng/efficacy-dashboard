@@ -65,9 +65,9 @@ def _check_credentials() -> list[str]:
 
 
 # Bump this when scoring/gating logic changes so cached results are recomputed
-# on the next refresh (no force needed). v2: learning section Pending until all
-# items reviewed; errors tab separated; feedback-based completeness gate.
-_LOGIC_VERSION = "v2"
+# on the next refresh (no force needed). v3: each learning item rated from its
+# own reviews (no per-item Pending); lesson Complete when 3 teachers reviewed it.
+_LOGIC_VERSION = "v3"
 
 
 # ── Core pipeline ─────────────────────────────────────────────────────────────
@@ -246,19 +246,9 @@ def process_all_lessons(force: bool = False) -> dict:
             st.warning(f"Flow B failed for {activity_ref}: {exc}")
             flow_b_result = {"activity_ref": activity_ref, "final_rating": "Average", "error": str(exc)}
 
-        # Complete only when the learning section is fully reviewed (all items have
-        # 3 reviews). Otherwise the lesson stays Pending — we don't rate a lesson
-        # whose learning items are still partly unreviewed.
-        learning_complete = flow_b_result.get("learning_complete", True)
-        if learning_complete:
-            flow_b_result["status"] = "Complete"
-        else:
-            flow_b_result["status"] = "Pending"
-            rated = flow_b_result.get("learning_items_rated", 0)
-            tot   = flow_b_result.get("learning_items_total", 0)
-            flow_b_result["one_line_summary"] = (
-                f"Awaiting reviews — {rated}/{tot} learning item(s) fully reviewed."
-            )
+        # Lesson is Complete once 3 teachers have reviewed it (the gate above).
+        # Individual items are rated from whatever reviews each has.
+        flow_b_result["status"]        = "Complete"
         flow_b_result["review_date"]   = lesson_rows[0].get("review_date", "")
         flow_b_result["error_reports"] = lesson_errors
 

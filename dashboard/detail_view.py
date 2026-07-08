@@ -488,9 +488,18 @@ def _render_learning_item_card(
     rationale = item_result.get("rationale", "")
     teacher_summaries = item_result.get("teacher_summaries", {}) or {}
     divergences       = item_result.get("divergences", []) or []
+    teacher_count     = item_result.get("teacher_count", len(teacher_summaries))
 
     color = _RAG_COLOR.get(rating, "#94A3B8")
     dot   = _RAG_DOT.get(rating, "•")
+
+    # Show how many teachers reviewed THIS item (transparency — items can have
+    # fewer than 3 reviews). Amber tint when fewer than 3.
+    tc_color = _MUTED if teacher_count >= 3 else _AMBER
+    tc_chip = (
+        f'<span style="font-size:0.72rem;font-weight:600;color:{tc_color}">'
+        f'· {teacher_count} teacher{"s" if teacher_count != 1 else ""}</span>'
+    )
 
     with st.container(border=True):
         # ── Item header ───────────────────────────────────────────────────────
@@ -503,6 +512,7 @@ def _render_learning_item_card(
                 + (f'<span style="font-size:0.9rem;font-weight:800;color:{color}">'
                    f'{score:.1f}<span style="font-size:0.7rem;font-weight:500;color:{_MUTED}">/5</span></span>'
                    if score > 0 else "")
+                + tc_chip
                 + "</div>",
                 unsafe_allow_html=True,
             )
@@ -537,20 +547,10 @@ def _render_learning_item_card(
         st.divider()
 
         # ── AI Consolidated Summary ───────────────────────────────────────────
+        # (The item's rating is already shown in the header — no duplicate
+        # "Final Rating" row here; the overall Learning-section rating is shown
+        # at the top of the section.)
         _render_ai_consolidated_summary(item_ref, teacher_summaries, ai_reviews)
-
-        st.divider()
-
-        # ── Final Rating ──────────────────────────────────────────────────────
-        st.markdown(
-            f'<div style="display:flex;align-items:center;gap:10px">'
-            f'<span style="font-size:0.78rem;font-weight:700;color:{_MUTED}">FINAL RATING</span>'
-            + _rag_pill(rating)
-            + (f'<span style="font-size:0.88rem;font-weight:800;color:{color}">'
-               f'{score:.1f}/5</span>' if score > 0 else "")
-            + "</div>",
-            unsafe_allow_html=True,
-        )
 
         st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
 
@@ -1045,21 +1045,7 @@ def render_detail_view(result: dict) -> None:
 
     if status == "Pending":
         reviews_received = len([n for n in result.get("teacher_names", []) if n])
-        total = result.get("learning_items_total", 0)
-        rated = result.get("learning_items_rated", 0)
-        if total and rated < total and reviews_received >= 3:
-            # Enough reviewers overall, but not every learning item has 3 reviews.
-            st.markdown(
-                f'<div style="background:#FFFBEB;border-left:4px solid {_AMBER};'
-                f'border-radius:0 10px 10px 0;padding:12px 16px;margin:8px 0">'
-                f'<span style="font-weight:700;color:#92400E">⏳ Pending</span>'
-                f'<span style="color:#78350F"> — only {rated} of {total} learning '
-                f'item(s) have all 3 reviews. The lesson is rated once every item '
-                f'is fully reviewed.</span></div>',
-                unsafe_allow_html=True,
-            )
-        else:
-            pending_banner(reviews_received)
+        pending_banner(reviews_received)
         # Reported errors are still worth showing on a not-yet-complete lesson.
         st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
         _render_error_reports(result.get("error_reports") or [])

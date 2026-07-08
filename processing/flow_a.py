@@ -63,25 +63,21 @@ def process_learning_item(
 ) -> dict:
     teacher_rows = _extract_teacher_rows(lesson_rows, item_ref)
 
-    if len(teacher_rows) < 3:
-        # Show whatever partial data exists so the UI isn't empty
-        partial_scores = [score_item_row(row) for row in teacher_rows]
-        partial_summaries = {
-            f"teacher{i+1}": _teacher_summary(row, scores)
-            for i, (row, scores) in enumerate(zip(teacher_rows, partial_scores))
-        }
+    # Each item is rated from whatever teacher reviews it has (1, 2, or 3+).
+    # We do NOT hold an item as "Pending" just because fewer than 3 teachers
+    # happened to review that specific item — the item gets its own rating and
+    # the teacher count is shown for transparency.
+    if not teacher_rows:
         return {
             "item_ref": item_ref,
             "section": "Learning",
             "rating": "Pending",
-            "rationale": (
-                f"Awaiting {3 - len(teacher_rows)} more review(s) to compute a final rating. "
-                + (f"Partial data from {len(teacher_rows)} teacher(s) shown below." if teacher_rows else "")
-            ),
-            "teacher_summaries": partial_summaries,
+            "rationale": "No teacher reviews for this item yet.",
+            "teacher_summaries": {},
             "divergences": [],
             "ai_expert_review": {},
             "score": 0.0,
+            "teacher_count": 0,
         }
 
     # Score each teacher's row
@@ -109,10 +105,13 @@ def process_learning_item(
         f"examples {all_scores[0].get('examples',3):.1f}",
         f"language {all_scores[0].get('language',3):.1f}",
     ]
+    n_teachers = len(teacher_rows)
     rationale = (
-        f"Average item score: {avg_score:.1f}/5 across {len(teacher_rows)} teachers "
+        f"Average item score: {avg_score:.1f}/5 across {n_teachers} teacher(s) "
         f"({', '.join(score_parts)}). "
     )
+    if n_teachers < 3:
+        rationale += f"Based on {n_teachers} of 3 teacher reviews. "
     if divergences:
         rationale += f"{len(divergences)} divergence(s) flagged: " + \
                      "; ".join(d["dimension"] for d in divergences) + "."
@@ -143,6 +142,7 @@ def process_learning_item(
         "section": "Learning",
         "score": round(final_score, 2),
         "rating": rating,
+        "teacher_count": n_teachers,
         "rationale": rationale,
         "teacher_summaries": teacher_summaries,
         "divergences": divergences,

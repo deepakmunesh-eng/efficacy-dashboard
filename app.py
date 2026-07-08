@@ -34,7 +34,7 @@ from utils.deduplication import (
     group_errors_by_lesson,
 )
 from utils.cache import (
-    compute_hash, has_changed,
+    compute_hash, has_changed, all_hashes,
     get_result, all_results as load_all_results,
     get_all_learnosity_content, bulk_store_learnosity_content, bulk_store_results,
 )
@@ -128,10 +128,13 @@ def process_all_lessons(force: bool = False) -> dict:
 
     # ── 2. Pre-load Learnosity cache, parallel-fetch any missing entries ──────
     learnosity_cache: dict = get_all_learnosity_content()
+    # Only fetch content we've NEVER looked up. Previously we also re-fetched every
+    # ref cached as "unavailable" — i.e. all of them, every refresh (~40s wasted),
+    # since the sheet's activity refs don't match Supabase. A force refresh still
+    # retries everything (including unavailable) below.
     missing_refs = [
         ref for ref in lessons
         if force or ref not in learnosity_cache
-           or learnosity_cache[ref].get("source") == "unavailable"
     ]
 
     if missing_refs:
@@ -141,7 +144,7 @@ def process_all_lessons(force: bool = False) -> dict:
             return ref, _fetch_from_supabase(ref) or _fallback(ref)
 
         new_content: dict = {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
             futures = {pool.submit(_supabase_fetch, ref): ref for ref in missing_refs}
             done = 0
             for future in concurrent.futures.as_completed(futures):
@@ -161,6 +164,11 @@ def process_all_lessons(force: bool = False) -> dict:
     results: dict   = {}
     new_results: dict  = {}
     new_hashes: dict   = {}
+
+    # Load the result + hash caches ONCE (previously re-read from disk per lesson,
+    # i.e. 217× parsing of a ~1 MB JSON — a big, silent cost on every refresh).
+    stored_results = load_all_results()
+    stored_hashes  = all_hashes()
 
     for i, (activity_ref, lesson_rows) in enumerate(lessons.items()):
         pct = 45 + int((i / max(total, 1)) * 50)
@@ -204,8 +212,8 @@ def process_all_lessons(force: bool = False) -> dict:
         # Change detection
         combined_hash = compute_hash({"rows": lesson_rows, "classroom": classroom,
                                       "errors": lesson_errors})
-        if not force and not has_changed(activity_ref, combined_hash):
-            cached = get_result(activity_ref)
+        if not force and stored_hashes.get(activity_ref) == combined_hash:
+            cached = stored_results.get(activity_ref)
             if cached:
                 results[activity_ref] = cached
                 continue
@@ -262,32 +270,11 @@ def process_all_lessons(force: bool = False) -> dict:
     if new_results:
         bulk_store_results(new_results, new_hashes)
 
-    # ── 5. AI Expert Reviews for Complete lessons (cached, parallel) ──────────
-    complete_refs = [
-        ref for ref, res in results.items()
-        if res.get("status") == "Complete"
-        and not res.get("ai_expert_review")
-        and (res.get("_per_teacher_data") or [])   # never generate without real feedback
-    ]
-    if complete_refs:
-        progress.progress(95, text=f"Generating AI expert reviews for {len(complete_refs)} lesson(s)…")
-        try:
-            ai_doc_reviews = _fetch_ai_doc_reviews()
-
-            def _run_ai(ref: str):
-                res = results[ref]
-                review = generate_ai_expert_review(
-                    res, res.get("flow_a_results", []), ai_doc_reviews
-                )
-                return ref, review
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-                ai_futures = list(pool.map(_run_ai, complete_refs))
-
-            for ref, ai_review in ai_futures:
-                results[ref]["ai_expert_review"] = ai_review
-        except Exception as exc:
-            st.warning(f"AI expert reviews skipped: {exc}")
+    # ── 5. AI Expert Reviews are generated LAZILY (on lesson open) ────────────
+    # Each review is a ~10-25s LLM call; generating all Complete lessons here made
+    # refresh take 3-5 min. Instead the detail view generates a lesson's review on
+    # first open (with a spinner) and caches it — so refresh stays fast (~10s) and
+    # the master list (which uses the rule-based rating) is unaffected.
 
     progress.progress(100, text="Done.")
     time.sleep(0.2)

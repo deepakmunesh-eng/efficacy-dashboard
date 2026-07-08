@@ -46,6 +46,11 @@ def has_changed(activity_ref: str, current_hash: str) -> bool:
     return get_stored_hash(activity_ref) != current_hash
 
 
+def all_hashes() -> dict:
+    """Load the whole hash map once (avoid re-reading the file per lesson)."""
+    return _load(_HASHES_FILE)
+
+
 # ── Processed results ─────────────────────────────────────────────────────────
 
 def get_result(activity_ref: str) -> dict | None:

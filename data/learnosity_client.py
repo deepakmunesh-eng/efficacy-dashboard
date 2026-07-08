@@ -37,32 +37,21 @@ def _fetch_from_supabase(activity_ref: str) -> dict | None:
     Returns the first matching lesson record as a content dict.
     """
     try:
+        # Single OR query across the three ref columns — was 3 sequential requests
+        # per lesson (worksheet, then target-practice, then smart-practice).
+        or_filter = (
+            f'(learnosity_activity_reference.eq."{activity_ref}",'
+            f'learnosity_tp_activity_reference.eq."{activity_ref}",'
+            f'learnosity_sp_activity_reference.eq."{activity_ref}")'
+        )
         resp = requests.get(
             SUPABASE_LESSONS_ENDPOINT,
             headers=_HEADERS,
-            params={
-                "select": "*",
-                "learnosity_activity_reference": f"eq.{activity_ref}",
-            },
-            timeout=15,
+            params={"select": "*", "or": or_filter, "limit": 1},
+            timeout=12,
         )
         resp.raise_for_status()
         records = resp.json()
-
-        if not records:
-            # Also try target practice / smart practice refs
-            for tp_field in ["learnosity_tp_activity_reference",
-                             "learnosity_sp_activity_reference"]:
-                resp2 = requests.get(
-                    SUPABASE_LESSONS_ENDPOINT,
-                    headers=_HEADERS,
-                    params={"select": "*", tp_field: f"eq.{activity_ref}"},
-                    timeout=15,
-                )
-                resp2.raise_for_status()
-                records = resp2.json()
-                if records:
-                    break
 
         if not records:
             return None

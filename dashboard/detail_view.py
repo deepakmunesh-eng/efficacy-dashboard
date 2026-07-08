@@ -1021,6 +1021,33 @@ def _render_error_reports(errors: list) -> None:
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
 
+def _ensure_ai_review(result: dict) -> dict:
+    """Generate the AI expert review on demand and cache it on the result.
+
+    Called the first time a Complete lesson's AI tab is opened, so the bulk
+    refresh doesn't pay for ~10-25s LLM calls across every lesson.
+    """
+    from processing.ai_expert_review import generate_ai_expert_review
+    from data.ai_review_reader import fetch_ai_reviews
+    from utils.cache import store_result
+
+    try:
+        ai_doc_reviews = fetch_ai_reviews()
+    except Exception:
+        ai_doc_reviews = {}
+
+    review = generate_ai_expert_review(
+        result, result.get("flow_a_results", []), ai_doc_reviews
+    )
+    result["ai_expert_review"] = review
+    # Persist so subsequent opens / refreshes are instant.
+    try:
+        store_result(result.get("activity_ref", ""), result)
+    except Exception:
+        pass
+    return review
+
+
 # ── Main entry point ───────────────────────────────────────────────────────────
 
 def render_detail_view(result: dict) -> None:
@@ -1091,7 +1118,12 @@ def render_detail_view(result: dict) -> None:
         # the other section tabs show just their own content.
         _render_lesson_rating_bar(result)
         _render_error_reports(result.get("error_reports") or [])
-        _render_ai_expert_review_tab(result.get("ai_expert_review") or {})
+        # AI review is generated lazily on first open (keeps refresh fast).
+        ai_review = result.get("ai_expert_review")
+        if not ai_review and result.get("_per_teacher_data"):
+            with st.spinner("Generating expert review from teacher feedback…"):
+                ai_review = _ensure_ai_review(result)
+        _render_ai_expert_review_tab(ai_review or {})
         if status != "Pending":
             st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
             _render_final_verdict(result)

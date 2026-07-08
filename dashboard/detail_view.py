@@ -200,8 +200,14 @@ def _render_teacher_summary_col(t_data: dict) -> None:
     st.markdown(html, unsafe_allow_html=True)
 
 
-def _synthesize_teacher_analysis(teacher_summaries: dict) -> list[tuple[str, str]]:
-    """Group teacher feedback by dimension for the consolidated view."""
+def _synthesize_teacher_analysis(teacher_summaries: dict) -> list[tuple[str, str, bool]]:
+    """Group teacher feedback by dimension for the consolidated view.
+
+    Returns (dimension, combined_text, diverges) tuples. The per-part
+    "Dimension: " prefix is stripped (the dimension is already the label, so we
+    don't want "Length: Length: ..."). When teachers give different answers for
+    the same dimension, `diverges` is True so the UI can flag the disagreement.
+    """
     buckets: dict[str, list[str]] = {
         "Understanding": [], "Engagement": [], "Examples": [],
         "Length": [], "Language": [], "Other": [],
@@ -215,7 +221,10 @@ def _synthesize_teacher_analysis(teacher_summaries: dict) -> list[tuple[str, str
             matched = False
             for key in ("Understanding", "Engagement", "Examples", "Length", "Language"):
                 if key.lower() in part.lower():
-                    buckets[key].append(part)
+                    # Drop the leading "Key: " label so it isn't shown twice.
+                    val = part.split(":", 1)[1].strip() if ":" in part else part
+                    if val:
+                        buckets[key].append(val)
                     matched = True
                     break
             if not matched:
@@ -223,9 +232,11 @@ def _synthesize_teacher_analysis(teacher_summaries: dict) -> list[tuple[str, str
 
     result = []
     for dim, items in buckets.items():
-        if items:
-            unique = list(dict.fromkeys(items))[:3]
-            result.append((dim, " · ".join(unique)))
+        if not items:
+            continue
+        unique = list(dict.fromkeys(items))
+        diverges = len(unique) > 1
+        result.append((dim, " · ".join(unique[:4]), diverges))
     return result
 
 
@@ -240,59 +251,34 @@ def _render_ai_consolidated_summary(
         unsafe_allow_html=True,
     )
 
-    col_teacher, col_expert = st.columns([3, 2])
-
-    with col_teacher:
-        # Build entire teacher analysis column as one HTML block.
-        analysis = _synthesize_teacher_analysis(teacher_summaries)
-        teacher_html = (
-            f'<div style="font-size:0.7rem;font-weight:700;color:{_MUTED};text-transform:uppercase;'
-            f'letter-spacing:0.07em;margin-bottom:8px">Teacher Analysis</div>'
-        )
-        if analysis:
-            teacher_html += "".join(
+    # Build the teacher analysis (full width — the "Expert AI Review" column was
+    # removed). Divergent dimensions are flagged so it's clear when teachers
+    # disagree instead of showing the same label twice.
+    analysis = _synthesize_teacher_analysis(teacher_summaries)
+    teacher_html = (
+        f'<div style="font-size:0.7rem;font-weight:700;color:{_MUTED};text-transform:uppercase;'
+        f'letter-spacing:0.07em;margin-bottom:8px">Teacher Analysis</div>'
+    )
+    if analysis:
+        for dim, text, diverges in analysis:
+            div_tag = (
+                f'<span style="background:#FEF3C7;color:#8A5800;border:1px solid #F5D98B;'
+                f'padding:0 7px;border-radius:20px;font-size:0.62rem;font-weight:700;'
+                f'margin-left:6px;white-space:nowrap">⚠ teachers differ</span>'
+                if diverges else ""
+            )
+            teacher_html += (
                 f'<div style="margin-bottom:5px">'
                 f'<span style="font-size:0.7rem;font-weight:700;color:{_MUTED};text-transform:uppercase">'
                 f'{dim}:</span> '
-                f'<span style="font-size:0.78rem;color:{_NAVY}">{text}</span></div>'
-                for dim, text in analysis
+                f'<span style="font-size:0.78rem;color:{_NAVY}">{text}</span>{div_tag}</div>'
             )
-        else:
-            teacher_html += (
-                f'<div style="font-size:0.78rem;color:{_MUTED};font-style:italic">'
-                f'No teacher analysis available.</div>'
-            )
-        st.markdown(teacher_html, unsafe_allow_html=True)
-
-    with col_expert:
-        # Build entire expert review column as one HTML block.
-        from data.ai_review_reader import get_item_review
-        doc_review = get_item_review(item_ref, ai_reviews)
-
-        expert_html = (
-            f'<div style="font-size:0.7rem;font-weight:700;color:{_MUTED};text-transform:uppercase;'
-            f'letter-spacing:0.07em;margin-bottom:8px">Expert AI Review</div>'
+    else:
+        teacher_html += (
+            f'<div style="font-size:0.78rem;color:{_MUTED};font-style:italic">'
+            f'No teacher analysis available.</div>'
         )
-        if doc_review:
-            subject = doc_review.get("subject", "")
-            topic   = doc_review.get("topic", "")
-            if subject or topic:
-                expert_html += (
-                    f'<div style="font-size:0.72rem;color:{_MUTED};margin-bottom:6px">'
-                    f'📚 {subject}{"  ·  " + topic if topic else ""}</div>'
-                )
-            expert_html += "".join(
-                f'<div style="font-size:0.78rem;color:{_NAVY};margin-bottom:4px;'
-                f'padding-left:10px;border-left:2px solid {_AMBER}">• {fb}</div>'
-                for fb in doc_review.get("feedback", [])[:6]
-            )
-        else:
-            expert_html += (
-                f'<div style="background:#F8FAFC;border-radius:8px;padding:10px 12px;'
-                f'font-size:0.78rem;color:{_MUTED};font-style:italic">'
-                f'No expert review available for this item yet.</div>'
-            )
-        st.markdown(expert_html, unsafe_allow_html=True)
+    st.markdown(teacher_html, unsafe_allow_html=True)
 
 
 def _render_curriculum_review_tab(
@@ -589,21 +575,6 @@ def _render_unreviewed_item_card(
             st.empty()
 
         st.caption("No teacher reviews submitted for this item yet.")
-
-        from data.ai_review_reader import get_item_review
-        doc_review = get_item_review(item_ref, ai_reviews)
-        if doc_review:
-            st.divider()
-            fb_html = (
-                f'<div style="font-size:0.7rem;font-weight:700;color:{_MUTED};text-transform:uppercase;'
-                f'letter-spacing:0.07em;margin-bottom:6px">Expert AI Review</div>'
-            ) + "".join(
-                f'<div style="font-size:0.78rem;color:{_NAVY};margin-bottom:4px;'
-                f'padding-left:10px;border-left:2px solid {_AMBER}">• {fb}</div>'
-                for fb in doc_review.get("feedback", [])[:4]
-            )
-            st.markdown(fb_html, unsafe_allow_html=True)
-
         st.divider()
 
 
@@ -1074,7 +1045,21 @@ def render_detail_view(result: dict) -> None:
 
     if status == "Pending":
         reviews_received = len([n for n in result.get("teacher_names", []) if n])
-        pending_banner(reviews_received)
+        total = result.get("learning_items_total", 0)
+        rated = result.get("learning_items_rated", 0)
+        if total and rated < total and reviews_received >= 3:
+            # Enough reviewers overall, but not every learning item has 3 reviews.
+            st.markdown(
+                f'<div style="background:#FFFBEB;border-left:4px solid {_AMBER};'
+                f'border-radius:0 10px 10px 0;padding:12px 16px;margin:8px 0">'
+                f'<span style="font-weight:700;color:#92400E">⏳ Pending</span>'
+                f'<span style="color:#78350F"> — only {rated} of {total} learning '
+                f'item(s) have all 3 reviews. The lesson is rated once every item '
+                f'is fully reviewed.</span></div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            pending_banner(reviews_received)
         # Reported errors are still worth showing on a not-yet-complete lesson.
         st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
         _render_error_reports(result.get("error_reports") or [])

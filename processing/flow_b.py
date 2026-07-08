@@ -63,15 +63,23 @@ def _section_teacher_rows(lesson_rows: list[dict]) -> list[dict]:
     return rows[:3]
 
 
-def _learning_score_from_flow_a(flow_a_results: list[dict]) -> tuple[float, bool]:
-    """Return (avg_score, majority_bad)."""
-    scores = [r.get("score", 3.0) for r in flow_a_results if r.get("score")]
-    if not scores:
-        return 3.0, False
-    avg = sum(scores) / len(scores)
-    bad_count = sum(1 for r in flow_a_results if r.get("rating") == "Bad")
-    majority_bad = bad_count > len(flow_a_results) / 2
-    return round(avg, 2), majority_bad
+def _learning_score_from_flow_a(flow_a_results: list[dict]) -> tuple[float, bool, int, int]:
+    """Return (avg_score, majority_bad, rated_count, total_count).
+
+    Only items that are actually rated (Good/Average/Bad — i.e. reviewed by ≥3
+    teachers) contribute to the score. `rated_count` vs `total_count` lets the
+    caller tell when the section is only partially reviewed (some items Pending),
+    so it isn't misleadingly marked Good/Average off a single rated item.
+    """
+    total = len(flow_a_results)
+    rated = [r for r in flow_a_results
+             if r.get("rating") in ("Good", "Average", "Bad") and r.get("score")]
+    if not rated:
+        return 3.0, False, 0, total
+    avg = sum(r["score"] for r in rated) / len(rated)
+    bad_count = sum(1 for r in rated if r.get("rating") == "Bad")
+    majority_bad = bad_count > len(rated) / 2
+    return round(avg, 2), majority_bad, len(rated), total
 
 
 def _build_section_summary(label: str, score: float, teacher_rows: list[dict],
@@ -129,7 +137,12 @@ def run_flow_b(
 
     # ── Section scores ────────────────────────────────────────────────────────
     # Learning: from Flow A
-    learning_score, majority_bad = _learning_score_from_flow_a(flow_a_results)
+    learning_score, majority_bad, rated_items, total_items_la = _learning_score_from_flow_a(flow_a_results)
+    # The learning section is only "complete" when every item has ≥3 reviews.
+    # If any item is still Pending, we must not present a confident Good/Average.
+    # No learning items → nothing to block on; otherwise require all items rated.
+    learning_complete = (total_items_la == 0) or (rated_items == total_items_la)
+    learning_pending  = max(total_items_la - rated_items, 0)
 
     # Practice + Exit Ticket: from section-level teacher rows
     section_scores = [score_section_row(r) for r in teachers]
@@ -146,10 +159,20 @@ def run_flow_b(
         classroom_score = round(sum(cr_scores) / len(cr_scores), 2)
 
     # ── Section ratings ───────────────────────────────────────────────────────
+    learning_summary = _build_section_summary(
+        "Learning", learning_score, teachers, "understanding_details", "understanding"
+    )
+    if not learning_complete:
+        # Withhold a confident rating while some items are still under review.
+        learning_summary["rating"] = "Pending"
+        learning_summary["rationale"] = (
+            f"{rated_items} of {total_items_la} learning item(s) fully reviewed; "
+            f"{learning_pending} still awaiting 3 reviews. "
+            "Section rating withheld until every item is reviewed."
+        )
+
     section_ratings: dict = {
-        "learning": _build_section_summary(
-            "Learning", learning_score, teachers, "understanding_details", "understanding"
-        ),
+        "learning": learning_summary,
         "practice": _build_section_summary(
             "Practice", avg_practice, teachers, "practice_observations", "practice_quality"
         ),
@@ -215,6 +238,16 @@ def run_flow_b(
             "Final rating capped at Average per spec constraint."
         )
 
+    # If the learning section isn't fully reviewed, we cannot finalise the lesson
+    # — don't present a Good/Average built on unreviewed items.
+    if not learning_complete:
+        final_rating = "Pending"
+        override_applied = True
+        override_rationale = (
+            f"{learning_pending} learning item(s) still awaiting 3 reviews — "
+            "final rating withheld until the learning section is complete."
+        )
+
     # ── Summary text ──────────────────────────────────────────────────────────
     section_labels = {"Good": "strong", "Average": "acceptable", "Bad": "weak"}
     parts = [
@@ -265,6 +298,9 @@ def run_flow_b(
         "avg_teacher_rating":        avg_teacher_rating,
         "has_divergence":            has_divergence,
         "divergence_count":          items_with_divergence,
+        "learning_complete":         learning_complete,
+        "learning_items_rated":      rated_items,
+        "learning_items_total":      total_items_la,
         "flow_a_results":            flow_a_results,
         "weights": {
             "learning":     round(w_l * 100),

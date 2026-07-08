@@ -64,6 +64,12 @@ def _check_credentials() -> list[str]:
     return issues
 
 
+# Bump this when scoring/gating logic changes so cached results are recomputed
+# on the next refresh (no force needed). v2: learning section Pending until all
+# items reviewed; errors tab separated; feedback-based completeness gate.
+_LOGIC_VERSION = "v2"
+
+
 # ── Core pipeline ─────────────────────────────────────────────────────────────
 def process_all_lessons(force: bool = False) -> dict:
     """Full ingestion + processing pipeline. Returns dict of all results."""
@@ -209,9 +215,10 @@ def process_all_lessons(force: bool = False) -> dict:
             }
             continue
 
-        # Change detection
+        # Change detection. `logic` invalidates all cached results when the scoring
+        # logic changes (bump _LOGIC_VERSION) so fixes apply without a force refresh.
         combined_hash = compute_hash({"rows": lesson_rows, "classroom": classroom,
-                                      "errors": lesson_errors})
+                                      "errors": lesson_errors, "logic": _LOGIC_VERSION})
         if not force and stored_hashes.get(activity_ref) == combined_hash:
             cached = stored_results.get(activity_ref)
             if cached:
@@ -239,7 +246,19 @@ def process_all_lessons(force: bool = False) -> dict:
             st.warning(f"Flow B failed for {activity_ref}: {exc}")
             flow_b_result = {"activity_ref": activity_ref, "final_rating": "Average", "error": str(exc)}
 
-        flow_b_result["status"]        = "Complete"
+        # Complete only when the learning section is fully reviewed (all items have
+        # 3 reviews). Otherwise the lesson stays Pending — we don't rate a lesson
+        # whose learning items are still partly unreviewed.
+        learning_complete = flow_b_result.get("learning_complete", True)
+        if learning_complete:
+            flow_b_result["status"] = "Complete"
+        else:
+            flow_b_result["status"] = "Pending"
+            rated = flow_b_result.get("learning_items_rated", 0)
+            tot   = flow_b_result.get("learning_items_total", 0)
+            flow_b_result["one_line_summary"] = (
+                f"Awaiting reviews — {rated}/{tot} learning item(s) fully reviewed."
+            )
         flow_b_result["review_date"]   = lesson_rows[0].get("review_date", "")
         flow_b_result["error_reports"] = lesson_errors
 

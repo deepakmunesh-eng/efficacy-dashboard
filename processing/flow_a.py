@@ -110,7 +110,7 @@ def process_learning_item(
         f"language {all_scores[0].get('language',3):.1f}",
     ]
     rationale = (
-        f"Average item score: {avg_score:.1f}/5 across 3 teachers "
+        f"Average item score: {avg_score:.1f}/5 across {len(teacher_rows)} teachers "
         f"({', '.join(score_parts)}). "
     )
     if divergences:

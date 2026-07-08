@@ -20,13 +20,19 @@ st.set_page_config(
 
 # ── Imports after page config ──────────────────────────────────────────────────
 from config.settings import LESSON_REVIEW_XLSX_URL, CLASSROOM_ADMIN_URL
-from data.sheets_reader import fetch_all_lesson_reviews
+from data.sheets_reader import fetch_all_lesson_reviews, fetch_error_reports
 from data.classroom_reader import fetch_classroom_reviews, group_classroom_by_lesson
 from data.lookup_reader import fetch_lesson_lookup
 from data.learnosity_client import get_lesson_content
 from processing.flow_a import run_flow_a
 from processing.flow_b import run_flow_b
-from utils.deduplication import deduplicate_reviews, group_by_lesson, get_unique_teachers
+from utils.deduplication import (
+    deduplicate_reviews,
+    group_by_lesson,
+    get_unique_teachers,
+    get_reviewers_with_feedback,
+    group_errors_by_lesson,
+)
 from utils.cache import (
     compute_hash, has_changed,
     get_result, all_results as load_all_results,
@@ -76,6 +82,12 @@ def process_all_lessons(force: bool = False) -> dict:
         except Exception as exc:
             return exc
 
+    def _fetch_errors():
+        try:
+            return fetch_error_reports()
+        except Exception:
+            return []
+
     def _fetch_classroom():
         try:
             return fetch_classroom_reviews()
@@ -88,12 +100,14 @@ def process_all_lessons(force: bool = False) -> dict:
         except Exception:
             return {}
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
         f_sheets    = pool.submit(_fetch_sheets)
+        f_errors    = pool.submit(_fetch_errors)
         f_classroom = pool.submit(_fetch_classroom)
         f_lookup    = pool.submit(_fetch_lookup)
         progress.progress(5, text="Fetching data sources in parallel…")
         raw_rows          = f_sheets.result()
+        error_records     = f_errors.result()
         classroom_records = f_classroom.result()
         lesson_lookup     = f_lookup.result()
 
@@ -108,6 +122,9 @@ def process_all_lessons(force: bool = False) -> dict:
     clean_rows = deduplicate_reviews(raw_rows)
     lessons    = group_by_lesson(clean_rows)
     classroom_by_lesson = group_classroom_by_lesson(classroom_records)
+    errors_by_lesson    = group_errors_by_lesson(
+        error_records if isinstance(error_records, list) else []
+    )
 
     # ── 2. Pre-load Learnosity cache, parallel-fetch any missing entries ──────
     learnosity_cache: dict = get_all_learnosity_content()
@@ -149,8 +166,10 @@ def process_all_lessons(force: bool = False) -> dict:
         pct = 45 + int((i / max(total, 1)) * 50)
         progress.progress(pct, text=f"Scoring {i+1}/{total}…")
 
-        unique_teachers = get_unique_teachers(lesson_rows)
-        classroom       = classroom_by_lesson.get(activity_ref, [])
+        unique_teachers   = get_unique_teachers(lesson_rows)
+        completed_reviews = get_reviewers_with_feedback(lesson_rows)
+        classroom         = classroom_by_lesson.get(activity_ref, [])
+        lesson_errors     = errors_by_lesson.get(activity_ref, [])
 
         # Backfill grade / chapter / lesson from lookup
         if lesson_lookup and activity_ref in lesson_lookup:
@@ -160,27 +179,31 @@ def process_all_lessons(force: bool = False) -> dict:
                 if not row.get("chapter"): row["chapter"] = meta["chapter"]
                 if not row.get("lesson"):  row["lesson"]  = meta["lesson"]
 
-        # Completeness gate
-        if len(unique_teachers) < 3:
+        # Completeness gate — a lesson is Pending until 3 reviewers have actually
+        # submitted feedback. Error-report rows and blank stubs carry a reviewer
+        # name but no feedback, so they must NOT count toward the 3.
+        if len(completed_reviews) < 3:
             results[activity_ref] = {
                 "activity_ref": activity_ref,
                 "grade":    lesson_rows[0].get("grade", "") if lesson_rows else "",
                 "chapter":  lesson_rows[0].get("chapter", "") if lesson_rows else "",
                 "lesson":   lesson_rows[0].get("lesson", "") if lesson_rows else "",
                 "status":   "Pending",
-                "teacher_names":    unique_teachers,
+                "teacher_names":    completed_reviews,
                 "teacher_ratings":  [],
                 "avg_teacher_rating": 0.0,
                 "final_rating":     "Pending",
-                "one_line_summary": f"Awaiting {3 - len(unique_teachers)} more review(s).",
+                "one_line_summary": f"Awaiting {3 - len(completed_reviews)} more review(s).",
                 "section_ratings":  {},
                 "flow_a_results":   [],
                 "actionable_recommendations": [],
+                "error_reports":    lesson_errors,
             }
             continue
 
         # Change detection
-        combined_hash = compute_hash({"rows": lesson_rows, "classroom": classroom})
+        combined_hash = compute_hash({"rows": lesson_rows, "classroom": classroom,
+                                      "errors": lesson_errors})
         if not force and not has_changed(activity_ref, combined_hash):
             cached = get_result(activity_ref)
             if cached:
@@ -208,8 +231,9 @@ def process_all_lessons(force: bool = False) -> dict:
             st.warning(f"Flow B failed for {activity_ref}: {exc}")
             flow_b_result = {"activity_ref": activity_ref, "final_rating": "Average", "error": str(exc)}
 
-        flow_b_result["status"]      = "Complete"
-        flow_b_result["review_date"] = lesson_rows[0].get("review_date", "")
+        flow_b_result["status"]        = "Complete"
+        flow_b_result["review_date"]   = lesson_rows[0].get("review_date", "")
+        flow_b_result["error_reports"] = lesson_errors
 
         # Attach per-teacher raw data
         teachers_data: list = []
@@ -241,7 +265,9 @@ def process_all_lessons(force: bool = False) -> dict:
     # ── 5. AI Expert Reviews for Complete lessons (cached, parallel) ──────────
     complete_refs = [
         ref for ref, res in results.items()
-        if res.get("status") == "Complete" and not res.get("ai_expert_review")
+        if res.get("status") == "Complete"
+        and not res.get("ai_expert_review")
+        and (res.get("_per_teacher_data") or [])   # never generate without real feedback
     ]
     if complete_refs:
         progress.progress(95, text=f"Generating AI expert reviews for {len(complete_refs)} lesson(s)…")

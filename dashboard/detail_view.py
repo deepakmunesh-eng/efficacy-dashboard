@@ -503,7 +503,6 @@ def _render_learning_item_card(
     teacher_summaries = item_result.get("teacher_summaries", {}) or {}
     divergences       = item_result.get("divergences", []) or []
 
-    learnosity_url = f"{LEARNOSITY_VIEWER_URL}{item_ref}"
     color = _RAG_COLOR.get(rating, "#94A3B8")
     dot   = _RAG_DOT.get(rating, "•")
 
@@ -522,15 +521,8 @@ def _render_learning_item_card(
                 unsafe_allow_html=True,
             )
         with h_right:
-            st.markdown(
-                f'<div style="text-align:right">'
-                f'<a href="{learnosity_url}" target="_blank" '
-                f'style="display:inline-flex;align-items:center;gap:4px;font-size:0.78rem;'
-                f'color:#4F46E5;font-weight:600;text-decoration:none;'
-                f'background:#EEF2FF;padding:4px 10px;border-radius:6px;">'
-                f'🔗 View in Learnosity</a></div>',
-                unsafe_allow_html=True,
-            )
+            # Learnosity item link removed until content access is available.
+            st.empty()
 
         if rationale:
             st.caption(rationale)
@@ -593,16 +585,8 @@ def _render_unreviewed_item_card(
                 unsafe_allow_html=True,
             )
         with h_right:
-            learnosity_url = f"{LEARNOSITY_VIEWER_URL}{item_ref}"
-            st.markdown(
-                f'<div style="text-align:right">'
-                f'<a href="{learnosity_url}" target="_blank" '
-                f'style="display:inline-flex;align-items:center;gap:4px;font-size:0.78rem;'
-                f'color:#4F46E5;font-weight:600;text-decoration:none;'
-                f'background:#EEF2FF;padding:4px 10px;border-radius:6px;">'
-                f'🔗 Open in Studio</a></div>',
-                unsafe_allow_html=True,
-            )
+            # Learnosity item link removed until content access is available.
+            st.empty()
 
         st.caption("No teacher reviews submitted for this item yet.")
 
@@ -843,18 +827,14 @@ def _render_ai_expert_review_tab(ai_review: dict) -> None:
         if conf_note else ""
     )
 
+    # Slim context line only — the headline rating + section scores are shown by
+    # the rating bar rendered just above this panel (AI review tab).
     st.markdown(
-        f'<div style="background:{bg};border:2px solid {c}44;border-left:6px solid {c};'
-        f'border-radius:0 14px 14px 0;padding:18px 22px;margin-bottom:20px">'
-        f'<div style="font-size:0.65rem;font-weight:700;color:{_MUTED};text-transform:uppercase;'
-        f'letter-spacing:0.08em;margin-bottom:4px">AI Expert Final Rating</div>'
-        f'<div style="font-size:2rem;font-weight:800;color:{t};margin-bottom:6px">{d} {final_rating}</div>'
-        f'<div style="font-size:0.88rem;color:{_NAVY};line-height:1.55;margin-bottom:10px">{summary}</div>'
-        f'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
+        f'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px">'
         f'{items_badge}'
         f'<span style="font-size:0.68rem;color:{_MUTED}">Generated {gen_str}</span>'
-        f'{conf_span}{conf_note_span}'
-        f'</div></div>',
+        f'{conf_span}'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
@@ -877,17 +857,18 @@ def _render_ai_expert_review_tab(ai_review: dict) -> None:
         if concerns:
             c_html = (
                 f'<div style="font-size:0.7rem;font-weight:700;color:{_MUTED};text-transform:uppercase;'
-                f'letter-spacing:0.07em;margin-bottom:8px">Concerns</div>'
+                f'letter-spacing:0.07em;margin-bottom:8px">Needs curriculum intervention</div>'
             ) + "".join(
                 f'<div style="display:flex;gap:8px;margin-bottom:6px">'
-                f'<span style="color:{_RED};font-size:0.9rem;flex-shrink:0">⚠</span>'
+                f'<span style="color:{_AMBER};font-size:0.9rem;flex-shrink:0">●</span>'
                 f'<span style="font-size:0.82rem;color:{_NAVY}">{c_item}</span></div>'
                 for c_item in concerns
             )
             st.markdown(c_html, unsafe_allow_html=True)
 
-    # Recommendations
-    if recs:
+    # Recommendations — hidden for now (flip to True to restore)
+    _SHOW_RECOMMENDATIONS = False
+    if _SHOW_RECOMMENDATIONS and recs:
         st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
         r_html = (
             f'<div style="font-size:0.7rem;font-weight:700;color:{_MUTED};text-transform:uppercase;'
@@ -954,10 +935,9 @@ def _render_lesson_rating_bar(result: dict) -> None:
     )
     score_display = f'<span style="font-size:1rem;font-weight:700;color:{_MUTED};margin:0 14px">{score:.2f}/5</span>' if score else ""
 
-    summary_line = (
-        f'<div style="font-size:0.75rem;color:{_MUTED};margin-top:3px">{summary[:120]}</div>'
-        if summary else ""
-    )
+    # Summary text intentionally omitted here — the full detail lives in the
+    # Strengths / "Needs curriculum intervention" lists (no more half-cut lines).
+    summary_line = ""
     st.markdown(
         f'<div style="background:{bg};border:1.5px solid {c}44;border-left:5px solid {c};'
         f'border-radius:0 12px 12px 0;padding:12px 18px;margin-bottom:16px;'
@@ -1002,6 +982,45 @@ def _render_final_verdict(result: dict) -> None:
             st.markdown(f"- {rec}")
 
 
+# ── Reported errors (from the 'Errors Reported' sheet tab) ──────────────────────
+
+def _render_error_reports(errors: list) -> None:
+    """Clearly-marked panel of concrete, teacher-flagged item errors."""
+    if not errors:
+        return
+    rows = ""
+    for e in errors:
+        ref   = (e.get("item_ref") or e.get("activity_ref") or "").strip()
+        num   = str(e.get("item_number", "") or "").strip()
+        etype = (e.get("error_type", "") or "").strip()
+        det   = (e.get("error_details", "") or "").strip()
+        who   = (e.get("reviewer_name", "") or "").strip()
+        head  = ref + (f"  ·  #{num}" if num else "")
+        type_pill = (
+            f'<span style="background:#FEE2E2;color:#9B1C1C;border:1px solid #F4B4B4;'
+            f'padding:1px 8px;border-radius:20px;font-size:0.68rem;font-weight:700;'
+            f'white-space:nowrap">{etype}</span>' if etype else ""
+        )
+        who_span = (f'<span style="font-size:0.68rem;color:{_MUTED}">— {who}</span>'
+                    if who else "")
+        rows += (
+            f'<div style="border-left:3px solid {_RED};background:#FEF2F2;'
+            f'border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:6px">'
+            f'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:2px">'
+            f'<span style="font-size:0.8rem;font-weight:700;color:{_NAVY}">{head}</span>'
+            f'{type_pill}{who_span}</div>'
+            f'<div style="font-size:0.82rem;color:{_NAVY};line-height:1.5">{det}</div>'
+            f'</div>'
+        )
+    st.markdown(
+        f'<div style="font-size:0.72rem;font-weight:800;color:{_RED};text-transform:uppercase;'
+        f'letter-spacing:0.07em;margin:6px 0 8px">⚠ Reported Errors ({len(errors)})</div>'
+        + rows,
+        unsafe_allow_html=True,
+    )
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+
 # ── Main entry point ───────────────────────────────────────────────────────────
 
 def render_detail_view(result: dict) -> None:
@@ -1029,6 +1048,9 @@ def render_detail_view(result: dict) -> None:
     if status == "Pending":
         reviews_received = len([n for n in result.get("teacher_names", []) if n])
         pending_banner(reviews_received)
+        # Reported errors are still worth showing on a not-yet-complete lesson.
+        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+        _render_error_reports(result.get("error_reports") or [])
         return
 
     if result.get("error"):
@@ -1036,16 +1058,12 @@ def render_detail_view(result: dict) -> None:
 
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
-    # ── Lesson-level Final Rating bar (visible above tabs) ────────────────────
-    _render_lesson_rating_bar(result)
-
     # ── Section tabs ──────────────────────────────────────────────────────────
-    tab_learn, tab_practice, tab_exit, tab_ai, tab_review = st.tabs([
+    tab_learn, tab_practice, tab_exit, tab_ai = st.tabs([
         "📖  Learning Section",
         "✏️  Practice Section",
         "🎯  Exit Section",
         "🤖  AI Expert Review",
-        "📋  Curriculum Review",
     ])
 
     per_teacher = result.get("_per_teacher_data", []) or []
@@ -1069,12 +1087,11 @@ def render_detail_view(result: dict) -> None:
         _render_exit_section(per_teacher, sr.get("exit_ticket", {}))
 
     with tab_ai:
+        # Overall rating, section breakdown and final verdict live ONLY here —
+        # the other section tabs show just their own content.
+        _render_lesson_rating_bar(result)
+        _render_error_reports(result.get("error_reports") or [])
         _render_ai_expert_review_tab(result.get("ai_expert_review") or {})
-
-    with tab_review:
-        _render_curriculum_review_tab(activity_ref, flow_a, sr)
-
-    # ── Final verdict (below tabs — Complete lessons only) ───────────────────
-    if status != "Pending":
-        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-        _render_final_verdict(result)
+        if status != "Pending":
+            st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+            _render_final_verdict(result)

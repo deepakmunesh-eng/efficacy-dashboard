@@ -28,6 +28,7 @@ import urllib.error
 import urllib.request
 
 from config.settings import (
+    BASE_DIR,
     CACHE_DIR,
     DATA_GATEWAY_BASE_URL,
     DATA_GATEWAY_TOKEN,
@@ -39,6 +40,35 @@ from config.settings import (
 
 _CACHE_FILE  = CACHE_DIR / "ai_expert_reviews.json"
 _CACHE_TTL   = 86400 * 7          # 7 days — re-generate when teacher reviews change
+
+
+# ── Learning Item Review reference (house style + five-check rubric) ─────────────
+# A curriculum reviewer compiled 5 Learnosity sheets into a plain-language
+# reference ("the five things we check"). We feed it to the model as the house
+# voice + rubric so the AI review reads like a teacher wrote it. The committed
+# .md (pre-extracted) is preferred; we fall back to the source .docx if present.
+_REVIEW_REF_MD   = BASE_DIR / "data" / "learning_review_reference.md"
+_REVIEW_REF_DOCX = BASE_DIR / "review files" / "Learning Item Review - Reference Document.docx"
+_reference_cache: "str | None" = None
+
+
+def _load_review_reference() -> str:
+    global _reference_cache
+    if _reference_cache is not None:
+        return _reference_cache
+    text = ""
+    try:
+        if _REVIEW_REF_MD.exists():
+            text = _REVIEW_REF_MD.read_text(encoding="utf-8")
+        elif _REVIEW_REF_DOCX.exists():
+            import docx  # optional; only needed to read the source .docx directly
+            d = docx.Document(str(_REVIEW_REF_DOCX))
+            text = "\n".join(p.text for p in d.paragraphs if p.text.strip())
+    except Exception as exc:  # noqa: BLE001
+        print(f"[ai_expert_review] reference load failed: {exc}")
+        text = ""
+    _reference_cache = text
+    return text
 
 
 # ── Cuemath data gateway (Learnosity reads) ────────────────────────────────────
@@ -263,35 +293,65 @@ def _format_items_text(items: list[dict]) -> str:
 
 
 def _format_teacher_text(per_teacher: list, flow_a_results: list) -> str:
+    """Every teacher's feedback, in full and untruncated — this is the primary
+    evidence the review is built from, so nothing is dropped."""
     lines = []
     for row in per_teacher:
         name = (row.get("reviewer_name") or "Teacher").strip()
         parts = [f"**{name}**"]
         if row.get("overall_rating"):
-            parts.append(f"  Overall: {row['overall_rating']}/5")
+            parts.append(f"  Overall rating: {row['overall_rating']}/5")
         if row.get("practice_quality"):
             parts.append(f"  Practice quality: {row['practice_quality']}")
         if row.get("practice_observations"):
-            parts.append(f"  Practice obs: {str(row['practice_observations'])[:180]}")
+            parts.append(f"  Practice observations: {row['practice_observations']}")
         if row.get("exit_ticket_quality"):
-            parts.append(f"  Exit ticket: {row['exit_ticket_quality']}")
+            parts.append(f"  Exit ticket quality: {row['exit_ticket_quality']}")
         if row.get("exit_ticket_observations"):
-            parts.append(f"  Exit obs: {str(row['exit_ticket_observations'])[:180]}")
+            parts.append(f"  Exit ticket observations: {row['exit_ticket_observations']}")
         if row.get("additional_suggestions"):
-            parts.append(f"  Suggestions: {str(row['additional_suggestions'])[:180]}")
+            parts.append(f"  Additional suggestions: {row['additional_suggestions']}")
         lines.append("\n".join(parts))
 
     for item_result in flow_a_results:
         ref    = item_result.get("item_ref", "")
         rating = item_result.get("rating", "")
         score  = float(item_result.get("score") or 0)
-        if ref:
-            lines.append(f"\nItem {ref}: {rating} ({score:.1f}/5)")
-            for t_data in (item_result.get("teacher_summaries") or {}).values():
-                summ = (t_data.get("summary") or "")
-                name = (t_data.get("name") or "")
-                if summ and summ != "No detailed feedback provided.":
-                    lines.append(f"  {name}: {summ[:150]}")
+        if not ref:
+            continue
+        lines.append(f"\nLearning item {ref} — teacher consensus {rating} ({score:.1f}/5)")
+        if item_result.get("rationale"):
+            lines.append(f"  Rationale: {item_result['rationale']}")
+        for t_data in (item_result.get("teacher_summaries") or {}).values():
+            summ = (t_data.get("summary") or "").strip()
+            name = (t_data.get("name") or "Teacher").strip()
+            conc = (t_data.get("key_concerns") or "").strip()
+            if summ and summ != "No detailed feedback provided.":
+                lines.append(f"  {name}: {summ}")
+            if conc:
+                lines.append(f"    Key concerns: {conc}")
+        for d in (item_result.get("divergences") or []):
+            dim  = d.get("dimension", "")
+            desc = d.get("description", "")
+            if dim or desc:
+                lines.append(f"  Teacher divergence — {dim}: {desc}")
+    return "\n".join(lines)
+
+
+def _format_error_reports(errors: list) -> str:
+    """Teacher-flagged concrete defects (from the 'Errors Reported' tab). These
+    are high-signal, item-specific problems — feed them in verbatim."""
+    if not errors:
+        return "(No specific errors were reported for this lesson.)"
+    lines = []
+    for e in errors:
+        ref   = e.get("item_ref") or e.get("activity_ref") or ""
+        num   = e.get("item_number", "")
+        etype = e.get("error_type", "")
+        det   = e.get("error_details", "")
+        head  = f"Item {ref}" + (f" (#{num})" if num else "")
+        tag   = f" [{etype}]" if etype else ""
+        lines.append(f"- {head}{tag}: {det}".rstrip())
     return "\n".join(lines)
 
 
@@ -312,13 +372,26 @@ def _build_prompt(
     teacher_text: str,
     section_scores: dict,
     doc_samples: str,
+    errors_text: str = "",
 ) -> str:
     lr = section_scores.get("learning",    {})
     pr = section_scores.get("practice",    {})
     et = section_scores.get("exit_ticket", {})
 
-    return f"""You are a senior Cuemath curriculum quality expert reviewing a K-8 math lesson on Learnosity.
+    reference = _load_review_reference()
+    ref_block = (
+        "\n## How we review — house style & the five checks (mirror this exactly)\n"
+        "The reference below is how our curriculum team reviews a learning item. "
+        "Copy this VOICE: warm, plain, specific — a helpful colleague talking, not a "
+        "formal rubric. Notice the five things we always check (Flow; Visuals & "
+        "simulations; Text load; Response boxes; Guided example & accuracy) and how "
+        "each point names the exact screen and the concrete fix.\n\n"
+        f"{reference}\n"
+        if reference else ""
+    )
 
+    return f"""You are a Cuemath curriculum reviewer. Write your review of this K-8 math lesson in the SAME warm, human, plain-language voice our teachers use — like a helpful colleague, never a formal report. Be specific and concrete: name the item/screen and say what you'd actually change.
+{ref_block}
 ## Lesson
 Grade {lesson_meta.get('grade','')} | {lesson_meta.get('chapter','')} | {lesson_meta.get('lesson','')}
 Activity ref: {lesson_meta.get('activity_ref','')}
@@ -329,29 +402,29 @@ Activity ref: {lesson_meta.get('activity_ref','')}
 ## Teacher Field Scores (3 teachers, rule-based)
 Learning: {lr.get('score',0):.1f}/5 ({lr.get('rating','—')}) | Practice: {pr.get('score',0):.1f}/5 ({pr.get('rating','—')}) | Exit Ticket: {et.get('score',0):.1f}/5 ({et.get('rating','—')})
 
-## Teacher Qualitative Feedback
+## Teacher Feedback — use EVERY point below
+This teacher feedback is your primary evidence. Use ALL of it — every teacher, every observation. Weave the recurring themes together and keep the specific, concrete points. Do not drop anyone's input.
 {teacher_text}
 
-## Expert Review Reference Examples (from curriculum doc)
+## Errors Reported by Teachers (concrete, item-specific defects — treat as must-fix)
+These are precise problems teachers flagged (wrong answers, inconsistent boxes, etc.). Reflect the important ones in "concerns"/"Needs curriculum intervention".
+{errors_text}
+
+## Reference expert-review examples (for tone)
 {doc_samples}
 
 ---
-Assess this lesson as a curriculum expert. Consider:
-1. Pedagogical clarity and scaffolding in the Learning items
-2. Quality and coverage of Practice items
-3. Exit ticket alignment with learning objectives
-4. Consistency between teacher observations and item content
-5. Specific content issues (language, visuals, cognitive load, unit errors)
+Now write the review, using the five-check lens where it fits (Flow, Visuals & simulations, Text load, Response boxes, Guided example & accuracy). Put what's genuinely working into "strengths"; put what needs a fix into "concerns" (these are shown to the team as "Needs curriculum intervention") — each phrased the way a teacher would say it: plain, kind, and specific. Ground everything in the teacher feedback above; where Learnosity item content isn't available, lean on the teacher feedback rather than inventing details.
 
 Respond ONLY with a valid JSON object — no markdown fences, no extra text:
 {{
   "final_rating": "Good" or "Average" or "Bad",
-  "overall_summary": "2-3 sentence expert assessment",
-  "strengths": ["strength 1", "strength 2"],
-  "concerns": ["concern 1", "concern 2"],
-  "recommendations": ["actionable fix 1", "actionable fix 2", "actionable fix 3"],
+  "overall_summary": "2-3 sentence plain-language take (used internally, not shown)",
+  "strengths": ["what's genuinely working, in a teacher's voice — specific, not generic", "..."],
+  "concerns": ["what needs curriculum intervention, phrased like a teacher's suggested change — name the item/screen and the concrete fix", "..."],
+  "recommendations": ["specific fix 1", "specific fix 2", "specific fix 3"],
   "confidence": "High" or "Medium" or "Low",
-  "confidence_note": "why this confidence level"
+  "confidence_note": "one line on why (e.g. based on teacher feedback only, Learnosity content not yet available)"
 }}"""
 
 
@@ -436,11 +509,26 @@ def generate_ai_expert_review(
     if not activity_ref:
         return {}
 
-    # Stable cache key: ref + hash of teacher names + weighted score
+    # No real teacher feedback → no report. Guards against generating a review
+    # off blank/error-only rows. (The completeness gate should already prevent
+    # this, but keep the safety net here too.)
+    per_teacher = flow_b_result.get("_per_teacher_data", []) or []
+    has_item_feedback = any(
+        (t.get("summary") or "").strip() not in ("", "No detailed feedback provided.")
+        for r in flow_a_results
+        for t in (r.get("teacher_summaries") or {}).values()
+    )
+    if not per_teacher and not has_item_feedback:
+        return {}
+
+    error_reports = flow_b_result.get("error_reports", []) or []
+
+    # Stable cache key: ref + hash of teacher names + weighted score + error count
     sig = hashlib.sha256(json.dumps({
         "ref":     activity_ref,
         "teachers": sorted(flow_b_result.get("teacher_names", [])),
         "score":    flow_b_result.get("weighted_score", 0),
+        "errors":   len(error_reports),
     }, sort_keys=True).encode()).hexdigest()[:16]
     cache_key = f"{activity_ref}|{sig}"
 
@@ -455,10 +543,8 @@ def generate_ai_expert_review(
 
     # ── Build prompt inputs ──────────────────────────────────────────────────
     items_text   = _format_items_text(items_summary)
-    teacher_text = _format_teacher_text(
-        flow_b_result.get("_per_teacher_data", []) or [],
-        flow_a_results,
-    )
+    teacher_text = _format_teacher_text(per_teacher, flow_a_results)
+    errors_text  = _format_error_reports(error_reports)
     doc_samples  = _format_doc_samples(ai_doc_reviews)
     lesson_meta  = {
         "activity_ref": activity_ref,
@@ -468,7 +554,8 @@ def generate_ai_expert_review(
     }
 
     prompt = _build_prompt(lesson_meta, items_text, teacher_text,
-                           flow_b_result.get("section_ratings", {}), doc_samples)
+                           flow_b_result.get("section_ratings", {}), doc_samples,
+                           errors_text)
 
     result = _call_claude(prompt)
     if result.get("error"):

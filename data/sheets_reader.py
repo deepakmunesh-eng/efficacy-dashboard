@@ -54,6 +54,33 @@ _HEADER_MAP: dict[str, str] = {
 
 _ALL_FIELDS = list(dict.fromkeys(_HEADER_MAP.values()))  # ordered, unique
 
+# ── Errors Reported tab (different schema — NOT teacher feedback) ───────────────
+# The "Errors Reported (…)" tab lists specific defects teachers flagged in an
+# item (e.g. "Q1h: second answer box should be 84 not 8"). It is a DIFFERENT
+# schema from the feedback tabs and must never be counted as a review, otherwise
+# lessons look "complete" (3+ reviewers) and get an AI report with no real
+# feedback. We parse it separately via fetch_error_reports().
+_ERROR_HEADER_MAP: dict[str, str] = {
+    "review date":        "review_date",
+    "activity reference": "activity_ref",
+    "grade":              "grade",
+    "grade of the chapter": "grade",
+    "chapter":            "chapter",
+    "lesson":             "lesson",
+    "reviewer name":      "reviewer_name",
+    "reviewer phone":     "reviewer_phone",
+    "item reference":     "item_ref",
+    "item number":        "item_number",
+    "error type":         "error_type",
+    "details":            "error_details",
+}
+_ERROR_FIELDS = list(dict.fromkeys(_ERROR_HEADER_MAP.values()))
+
+
+def _is_error_tab(name: str) -> bool:
+    """A tab is an error-report tab if its name mentions 'error'."""
+    return "error" in str(name).strip().lower()
+
 
 def _download_workbook() -> BytesIO:
     resp = requests.get(LESSON_REVIEW_XLSX_URL, timeout=30, allow_redirects=True)
@@ -81,7 +108,8 @@ def _parse_sheet(df: pd.DataFrame) -> list[dict]:
 
 def fetch_all_lesson_reviews() -> list[dict]:
     """
-    Download the workbook, read every tab, return a flat list of row dicts.
+    Download the workbook, read every FEEDBACK tab, return a flat list of row
+    dicts. Error-report tabs are skipped here (see fetch_error_reports()).
     Completely empty rows are dropped.
     """
     buf = _download_workbook()
@@ -89,6 +117,8 @@ def fetch_all_lesson_reviews() -> list[dict]:
 
     all_rows: list[dict] = []
     for sheet_name in xl.sheet_names:
+        if _is_error_tab(sheet_name):
+            continue  # error reports are not teacher feedback — handled separately
         try:
             df = xl.parse(sheet_name, header=0, dtype=str)
             rows = _parse_sheet(df)
@@ -111,3 +141,44 @@ def fetch_all_lesson_reviews() -> list[dict]:
         r for r in all_rows
         if any(r.get(f, "").strip() for f in _KEEP_FIELDS)
     ]
+
+
+def _parse_error_sheet(df: pd.DataFrame) -> list[dict]:
+    col_to_field: dict[str, str] = {}
+    for col in df.columns:
+        key = str(col).strip().lower()
+        if key in _ERROR_HEADER_MAP:
+            col_to_field[col] = _ERROR_HEADER_MAP[key]
+
+    rows = []
+    for _, raw in df.iterrows():
+        record: dict = {f: "" for f in _ERROR_FIELDS}
+        for col, field in col_to_field.items():
+            val = raw[col]
+            record[field] = "" if pd.isna(val) else str(val).strip()
+        rows.append(record)
+    return rows
+
+
+def fetch_error_reports() -> list[dict]:
+    """Read every error-report tab and return structured error dicts:
+    {review_date, activity_ref, grade, chapter, lesson, reviewer_name,
+     item_ref, item_number, error_type, error_details}.
+    Only rows that actually describe an error are kept."""
+    buf = _download_workbook()
+    xl = pd.ExcelFile(buf, engine="openpyxl")
+
+    errors: list[dict] = []
+    for sheet_name in xl.sheet_names:
+        if not _is_error_tab(sheet_name):
+            continue
+        try:
+            df = xl.parse(sheet_name, header=0, dtype=str)
+            for r in _parse_error_sheet(df):
+                if (r.get("error_type", "").strip()
+                        or r.get("error_details", "").strip()):
+                    r["_source_tab"] = sheet_name
+                    errors.append(r)
+        except Exception as exc:
+            print(f"[sheets_reader] Skipping error tab '{sheet_name}': {exc}")
+    return errors

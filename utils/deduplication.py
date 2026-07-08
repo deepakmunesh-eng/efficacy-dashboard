@@ -106,3 +106,50 @@ def get_unique_teachers(lesson_rows: list[dict]) -> list[str]:
             seen_norms.append(norm)
             names.append(row.get("reviewer_name", norm))
     return names
+
+
+# Fields that indicate a reviewer actually submitted feedback (not just a name
+# on an error-report row or a blank stub). Used for the "3 reviews" gate.
+_FEEDBACK_FIELDS = (
+    "understanding", "understanding_details",
+    "examples_practice", "examples_practice_details",
+    "engagement", "engagement_details",
+    "length", "language",
+    "practice_quality", "practice_observations",
+    "exit_ticket_quality", "exit_ticket_observations",
+    "overall_rating", "additional_suggestions",
+)
+
+
+def get_reviewers_with_feedback(lesson_rows: list[dict]) -> list[str]:
+    """Distinct reviewers who actually submitted feedback for this lesson.
+
+    A reviewer counts only if at least one of their rows carries a substantive
+    feedback field. This prevents error-report rows or blank stubs (which still
+    have a reviewer name) from making a lesson look 'complete'.
+    """
+    norms = [normalize_name(r.get("reviewer_name", "")) for r in lesson_rows]
+    canon = _canonical_name_map([n for n in norms if n])
+
+    has_feedback: dict[str, bool] = {}
+    display: dict[str, str] = {}
+    for row in lesson_rows:
+        norm = normalize_name(row.get("reviewer_name", ""))
+        if not norm:
+            continue
+        c = canon.get(norm, norm)
+        display.setdefault(c, row.get("reviewer_name", norm))
+        substantive = any((row.get(f) or "").strip() for f in _FEEDBACK_FIELDS)
+        has_feedback[c] = has_feedback.get(c, False) or substantive
+
+    return [display[c] for c, ok in has_feedback.items() if ok]
+
+
+def group_errors_by_lesson(errors: list[dict]) -> dict[str, list[dict]]:
+    """Group reported errors by activity_ref."""
+    grouped: dict[str, list[dict]] = {}
+    for e in errors:
+        key = e.get("activity_ref", "")
+        if key:
+            grouped.setdefault(key, []).append(e)
+    return grouped

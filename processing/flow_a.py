@@ -82,14 +82,23 @@ def process_learning_item(
 
     # Score each teacher's row
     all_scores = [score_item_row(row) for row in teacher_rows]
-    avg_score = round(sum(s["item_score"] for s in all_scores) / len(all_scores), 2)
+    n_teachers = len(teacher_rows)
 
-    # Detect divergences
+    # Per-dimension AVERAGES across teachers (not just the first teacher).
+    _dims = ["understanding", "engagement", "examples", "language"]
+    dim_avgs = {d: round(sum(s[d] for s in all_scores) / n_teachers, 1) for d in _dims}
+    length_factor = round(sum(s["length_mod"] for s in all_scores) / n_teachers, 2)
+
+    # Base score = mean of each teacher's item score (dimension avg × length factor).
+    base_score = round(sum(s["item_score"] for s in all_scores) / n_teachers, 2)
+
+    # Detect divergences and apply a small penalty per diverging dimension.
     divergences = detect_divergences(all_scores)
+    penalty = round(len(divergences) * 0.2, 2)
 
-    # Divergence penalty: each diverging dimension reduces score slightly
-    penalty = len(divergences) * 0.2
-    final_score = max(1.0, avg_score - penalty)
+    # Round to 1 decimal FIRST, then rate — so the number shown and the rating
+    # always agree (previously 3.97 displayed as "4.0" but rated Average).
+    final_score = round(max(1.0, base_score - penalty), 1)
     rating = rag_from_score(final_score)
 
     # Build per-teacher summaries
@@ -98,25 +107,31 @@ def process_learning_item(
         key = f"teacher{i+1}"
         teacher_summaries[key] = _teacher_summary(row, scores)
 
-    # Build rationale
-    score_parts = [
-        f"understanding {all_scores[0].get('understanding',3):.1f}",
-        f"engagement {all_scores[0].get('engagement',3):.1f}",
-        f"examples {all_scores[0].get('examples',3):.1f}",
-        f"language {all_scores[0].get('language',3):.1f}",
-    ]
-    n_teachers = len(teacher_rows)
+    # Structured breakdown for the UI "how this is calculated" panel.
+    score_breakdown = {
+        "teacher_count":       n_teachers,
+        "dimension_averages":  dim_avgs,
+        "length_factor":       length_factor,
+        "base_score":          base_score,
+        "divergence_penalty":  penalty,
+        "diverging_dimensions": [d["dimension"] for d in divergences],
+        "final_score":         final_score,
+        "rating":              rating,
+    }
+
+    # Concise, accurate rationale (uses averages, matches the shown score/rating).
+    div_dims = ", ".join(d["dimension"] for d in divergences)
     rationale = (
-        f"Average item score: {avg_score:.1f}/5 across {n_teachers} teacher(s) "
-        f"({', '.join(score_parts)}). "
+        f"{rating} — final score {final_score:.1f}/5, from {n_teachers} teacher review(s). "
+        f"Dimension averages: understanding {dim_avgs['understanding']:.1f}, "
+        f"engagement {dim_avgs['engagement']:.1f}, examples {dim_avgs['examples']:.1f}, "
+        f"language {dim_avgs['language']:.1f}"
+        + (f"; length factor ×{length_factor:.2f}" if length_factor < 1.0 else "")
+        + f" → base {base_score:.1f}/5."
     )
-    if n_teachers < 3:
-        rationale += f"Based on {n_teachers} of 3 teacher reviews. "
-    if divergences:
-        rationale += f"{len(divergences)} divergence(s) flagged: " + \
-                     "; ".join(d["dimension"] for d in divergences) + "."
     if penalty:
-        rationale += f" Divergence penalty applied (−{penalty:.1f})."
+        rationale += f" Divergence penalty −{penalty:.1f} (teachers disagreed on {div_dims})."
+    rationale += " Bands: Good ≥4.0, Average 2.5–3.9, Bad <2.5."
 
     # AI expert review placeholder — populated when Learnosity content becomes available
     learnosity_note = learnosity_content.get("note", "")
@@ -140,9 +155,10 @@ def process_learning_item(
     return {
         "item_ref": item_ref,
         "section": "Learning",
-        "score": round(final_score, 2),
+        "score": final_score,
         "rating": rating,
         "teacher_count": n_teachers,
+        "score_breakdown": score_breakdown,
         "rationale": rationale,
         "teacher_summaries": teacher_summaries,
         "divergences": divergences,

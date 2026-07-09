@@ -476,6 +476,57 @@ def _render_curriculum_review_tab(
             st.rerun()
 
 
+def _render_score_breakdown(bd: dict) -> None:
+    """Clear, step-by-step explanation of how an item's rating was computed."""
+    dims = bd.get("dimension_averages", {}) or {}
+    n    = bd.get("teacher_count", 0)
+    base = bd.get("base_score", 0.0)
+    lf   = bd.get("length_factor", 1.0)
+    pen  = bd.get("divergence_penalty", 0.0)
+    fin  = bd.get("final_score", 0.0)
+    rating = bd.get("rating", "—")
+    div_dims = bd.get("diverging_dimensions", []) or []
+    rcol = _RAG_COLOR.get(rating, "#94A3B8")
+
+    def _row(label, val, sub=""):
+        return (
+            f'<div style="display:flex;justify-content:space-between;gap:12px;'
+            f'padding:3px 0;font-size:0.82rem">'
+            f'<span style="color:{_NAVY}">{label}'
+            + (f' <span style="color:{_MUTED};font-size:0.72rem">{sub}</span>' if sub else "")
+            + f'</span><span style="font-weight:700;color:{_NAVY}">{val}</span></div>'
+        )
+
+    html = (
+        f'<div style="font-size:0.72rem;color:{_MUTED};margin-bottom:6px">'
+        f'Each teacher scores 4 dimensions (0–5); we average them, apply a length '
+        f'factor and any divergence penalty, then map to a band.</div>'
+    )
+    html += f'<div style="font-size:0.7rem;font-weight:700;color:{_MUTED};text-transform:uppercase;margin:6px 0 2px">Dimension averages (across {n} teacher{"s" if n!=1 else ""})</div>'
+    for d in ("understanding", "engagement", "examples", "language"):
+        v = dims.get(d)
+        if v is not None:
+            html += _row(d.title(), f"{v:.1f} / 5")
+    html += '<div style="border-top:1px solid #E2E8F0;margin:6px 0"></div>'
+    html += _row("Base score", f"{base:.1f} / 5", "avg of the 4 dims per teacher"
+                 + (f", ×{lf:.2f} length factor" if lf < 1.0 else ""))
+    if pen:
+        html += _row("Divergence penalty", f"−{pen:.1f}",
+                     f"teachers disagreed on {', '.join(div_dims)}")
+    html += '<div style="border-top:1px solid #E2E8F0;margin:6px 0"></div>'
+    html += (
+        f'<div style="display:flex;justify-content:space-between;align-items:center;'
+        f'gap:12px;padding:4px 0">'
+        f'<span style="font-size:0.82rem;font-weight:700;color:{_NAVY}">Final score</span>'
+        f'<span style="font-size:0.95rem;font-weight:800;color:{rcol}">{fin:.1f} / 5 · {rating}</span></div>'
+    )
+    html += (
+        f'<div style="font-size:0.72rem;color:{_MUTED};margin-top:8px">'
+        f'<b>Bands:</b> 🟢 Good ≥ 4.0 · 🟡 Average 2.5–3.9 · 🔴 Bad &lt; 2.5</div>'
+    )
+    st.markdown(html, unsafe_allow_html=True)
+
+
 def _render_learning_item_card(
     item_result: dict,
     activity_ref: str,
@@ -522,6 +573,11 @@ def _render_learning_item_card(
 
         if rationale:
             st.caption(rationale)
+
+        bd = item_result.get("score_breakdown")
+        if bd:
+            with st.expander("🧮  How this rating is calculated"):
+                _render_score_breakdown(bd)
 
         if divergences:
             dims = ", ".join(d.get("dimension", "") for d in divergences if d.get("dimension"))

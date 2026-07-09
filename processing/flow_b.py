@@ -84,13 +84,18 @@ def _learning_score_from_flow_a(flow_a_results: list[dict]) -> tuple[float, bool
 
 def _build_section_summary(label: str, score: float, teacher_rows: list[dict],
                             obs_field: str, quality_field: str) -> dict:
+    # Round to 1 decimal BEFORE rating so the shown score and rating agree.
+    score = round(score, 1)
     rating = rag_from_score(score)
     observations = [r.get(obs_field, "").strip() for r in teacher_rows if r.get(obs_field)]
     quality_vals  = [r.get(quality_field, "").strip() for r in teacher_rows if r.get(quality_field)]
-    rationale = f"Average {label} score: {score:.1f}/5 from {len(teacher_rows)} teacher(s)."
+    rationale = (
+        f"{rating} — average {label} score {score:.1f}/5 from {len(teacher_rows)} teacher(s). "
+        f"Bands: Good ≥4.0, Average 2.5–3.9, Bad <2.5."
+    )
     if observations:
         rationale += " Key observations: " + " | ".join(observations[:3])[:300]
-    return {"rating": rating, "score": round(score, 2), "rationale": rationale}
+    return {"rating": rating, "score": score, "rationale": rationale}
 
 
 def _build_recommendations(section_ratings: dict, flow_a_results: list[dict],
@@ -218,6 +223,10 @@ def run_flow_b(
     if has_divergence:
         div_penalty = round(divergence_ratio * 0.5, 2)
         weighted = max(1.0, round(weighted - div_penalty, 2))
+
+    # Round to 1 decimal BEFORE rating so the shown weighted score and the final
+    # rating always agree (no "4.0 but Average" contradiction).
+    weighted = round(weighted, 1)
 
     # ── Flow A constraint: majority bad → cannot be Good ─────────────────────
     override_applied = False

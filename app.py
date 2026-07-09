@@ -65,10 +65,10 @@ def _check_credentials() -> list[str]:
 
 
 # Bump this when scoring/gating logic changes so cached results are recomputed
-# on the next refresh (no force needed). v4: fixed merged-cell data loss —
-# continuation item rows (003, 004…) were dropped in dedup, so each item now
-# gets all its teacher reviews (most items go from ~1 to 3+ teachers).
-_LOGIC_VERSION = "v4"
+# on the next refresh (no force needed). v5: round score to 1 decimal BEFORE
+# rating (shown score & rating now always agree); rationale uses true dimension
+# averages; added score_breakdown for the "how it's calculated" panel.
+_LOGIC_VERSION = "v5"
 
 
 # ── Core pipeline ─────────────────────────────────────────────────────────────

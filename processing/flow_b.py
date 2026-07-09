@@ -18,8 +18,8 @@ No divergence penalty (divergence is shown as info only).
 from __future__ import annotations
 
 from processing.scoring import (
-    score_section_row, score_classroom_record, rag_from_score,
-    has_negative_feedback,
+    score_section_row, score_classroom_record, rag_from_score, penalty_for,
+    _HARD_PENALTY as _HARD_PENALTY_REF,
 )
 from utils.helpers import normalize_name
 
@@ -31,8 +31,8 @@ _WEIGHTS = {
     "overall":   10,
     "classroom": 25,
 }
-
-_SECTION_PENALTY = 0.2   # −0.2 for reported errors / negative feedback
+# Penalties are severity-scaled in scoring.penalty_for: −1.5 for a genuine
+# reported error, −0.75 for confusion/clarity/bug wording, else 0.
 
 
 _BACKFILL_FIELDS = (
@@ -108,27 +108,27 @@ def run_flow_b(
     teachers = _section_teacher_rows(lesson_rows)
     section_scores = [score_section_row(r) for r in teachers]
 
-    # ── Learning: average of item ratings, −0.2 for reported errors / neg feedback
+    # ── Learning: average of item ratings, severity-scaled penalty
     rated = [r["score"] for r in flow_a_results
              if r.get("rating") in ("Good", "Average", "Bad") and r.get("score")]
     learning_base = round(sum(rated) / len(rated), 2) if rated else 0.0
-    learning_neg = bool(error_reports) or any(
-        has_negative_feedback(r.get("understanding_details", ""),
-                              r.get("examples_practice_details", ""),
-                              r.get("engagement_details", ""))
-        for r in lesson_rows
-    )
-    learning_score = round(max(1.0, learning_base - (_SECTION_PENALTY if learning_neg and learning_base else 0.0)), 1) if learning_base else 0.0
+    learning_pen = penalty_for(
+        *[t for r in lesson_rows for t in (r.get("understanding_details", ""),
+                                           r.get("examples_practice_details", ""),
+                                           r.get("engagement_details", ""))],
+        has_reported_error=bool(error_reports),
+    ) if learning_base else 0.0
+    learning_score = round(max(1.0, learning_base - learning_pen), 1) if learning_base else 0.0
 
-    # ── Practice: average of option scores, −0.2 for negative observations
+    # ── Practice: average of option scores, severity-scaled penalty
     practice_base = _avg([s["practice_score"] for s in section_scores])
-    practice_neg = any(has_negative_feedback(r.get("practice_observations", "")) for r in teachers)
-    practice_score = round(max(1.0, practice_base - (_SECTION_PENALTY if practice_neg and practice_base else 0.0)), 1) if practice_base else 0.0
+    practice_pen = penalty_for(*[r.get("practice_observations", "") for r in teachers]) if practice_base else 0.0
+    practice_score = round(max(1.0, practice_base - practice_pen), 1) if practice_base else 0.0
 
     # ── Exit ticket: same shape as practice
     exit_base = _avg([s["exit_ticket_score"] for s in section_scores])
-    exit_neg = any(has_negative_feedback(r.get("exit_ticket_observations", "")) for r in teachers)
-    exit_score = round(max(1.0, exit_base - (_SECTION_PENALTY if exit_neg and exit_base else 0.0)), 1) if exit_base else 0.0
+    exit_pen = penalty_for(*[r.get("exit_ticket_observations", "") for r in teachers]) if exit_base else 0.0
+    exit_score = round(max(1.0, exit_base - exit_pen), 1) if exit_base else 0.0
 
     # ── Overall (teachers' own 1–5 rating) and Classroom
     overall_score = _avg([s["overall_rating"] for s in section_scores])
@@ -148,28 +148,28 @@ def run_flow_b(
     eff_weights = {k: round(_WEIGHTS[k] / tot_w * 100) for k in active}
     weighted = sum(components[k] * _WEIGHTS[k] for k in active) / tot_w
 
-    # Lesson-wide penalty: negative feedback / errors in additional suggestions.
-    lesson_neg = any(has_negative_feedback(r.get("additional_suggestions", "")) for r in teachers)
-    if lesson_neg:
-        weighted -= _SECTION_PENALTY
+    # Lesson-wide penalty: errors / negative feedback in additional suggestions.
+    lesson_pen = penalty_for(*[r.get("additional_suggestions", "") for r in teachers])
+    weighted -= lesson_pen
     weighted = round(max(1.0, weighted), 1)
     final_rating = rag_from_score(weighted)
 
     # ── Section ratings for display ────────────────────────────────────────────
-    def _sec(label, base, score, neg):
+    def _sec(label, base, score, pen):
         if not base:
             return _section_dict(0.0, "N/A", f"No {label.lower()} feedback provided.")
         r = rag_from_score(score)
         txt = f"{r} — average {label} score {score:.1f}/5 from {len(teachers)} teacher(s)."
-        if neg:
-            txt += f" (−{_SECTION_PENALTY} penalty for reported errors / negative feedback.)"
+        if pen:
+            kind = "genuine error" if pen >= _HARD_PENALTY_REF else "confusion / clarity issue"
+            txt += f" (−{pen:g} penalty for {kind}.)"
         txt += " Bands: Good ≥4.0, Average 2.5–3.9, Bad <2.5."
-        return _section_dict(score, r, txt, neg)
+        return _section_dict(score, r, txt, bool(pen))
 
     section_ratings = {
-        "learning":    _sec("Learning", learning_base, learning_score, learning_neg),
-        "practice":    _sec("Practice", practice_base, practice_score, practice_neg),
-        "exit_ticket": _sec("Exit Ticket", exit_base, exit_score, exit_neg),
+        "learning":    _sec("Learning", learning_base, learning_score, learning_pen),
+        "practice":    _sec("Practice", practice_base, practice_score, practice_pen),
+        "exit_ticket": _sec("Exit Ticket", exit_base, exit_score, exit_pen),
         "teacher_overall": _section_dict(
             overall_score, rag_from_score(overall_score) if overall_score else "N/A",
             (f"Teachers' overall rating: {overall_score:.1f}/5." if overall_score
@@ -187,7 +187,7 @@ def run_flow_b(
     final_rationale = (
         f"Weighted lesson score {weighted:.1f}/5 = " + " + ".join(parts) + ". "
         + ("No classroom review — its weight was redistributed. " if not has_classroom else "")
-        + (f"−{_SECTION_PENALTY} penalty (errors/negative feedback in suggestions). " if lesson_neg else "")
+        + (f"−{lesson_pen:g} penalty (errors/negative feedback in suggestions). " if lesson_pen else "")
         + "Bands: Good ≥4.0, Average 2.5–3.9, Bad <2.5."
     )
 
@@ -204,7 +204,7 @@ def run_flow_b(
         "weights":       eff_weights,
         "weighted":      weighted,
         "rating":        final_rating,
-        "lesson_penalty": _SECTION_PENALTY if lesson_neg else 0.0,
+        "lesson_penalty": lesson_pen,
         "has_classroom": has_classroom,
     }
 

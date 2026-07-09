@@ -480,12 +480,8 @@ def _render_score_breakdown(bd: dict) -> None:
     """Clear, step-by-step explanation of how an item's rating was computed."""
     dims = bd.get("dimension_averages", {}) or {}
     n    = bd.get("teacher_count", 0)
-    base = bd.get("base_score", 0.0)
-    lf   = bd.get("length_factor", 1.0)
-    pen  = bd.get("divergence_penalty", 0.0)
     fin  = bd.get("final_score", 0.0)
     rating = bd.get("rating", "—")
-    div_dims = bd.get("diverging_dimensions", []) or []
     rcol = _RAG_COLOR.get(rating, "#94A3B8")
 
     def _row(label, val, sub=""):
@@ -499,25 +495,19 @@ def _render_score_breakdown(bd: dict) -> None:
 
     html = (
         f'<div style="font-size:0.72rem;color:{_MUTED};margin-bottom:6px">'
-        f'Each teacher scores 4 dimensions (0–5); we average them, apply a length '
-        f'factor and any divergence penalty, then map to a band.</div>'
+        f'Each teacher scores 5 dimensions (0–5). The item score is the average '
+        f'of those dimensions across all teachers, mapped to a band.</div>'
     )
     html += f'<div style="font-size:0.7rem;font-weight:700;color:{_MUTED};text-transform:uppercase;margin:6px 0 2px">Dimension averages (across {n} teacher{"s" if n!=1 else ""})</div>'
-    for d in ("understanding", "engagement", "examples", "language"):
+    for d in ("understanding", "engagement", "examples", "length", "language"):
         v = dims.get(d)
         if v is not None:
             html += _row(d.title(), f"{v:.1f} / 5")
     html += '<div style="border-top:1px solid #E2E8F0;margin:6px 0"></div>'
-    html += _row("Base score", f"{base:.1f} / 5", "avg of the 4 dims per teacher"
-                 + (f", ×{lf:.2f} length factor" if lf < 1.0 else ""))
-    if pen:
-        html += _row("Divergence penalty", f"−{pen:.1f}",
-                     f"teachers disagreed on {', '.join(div_dims)}")
-    html += '<div style="border-top:1px solid #E2E8F0;margin:6px 0"></div>'
     html += (
         f'<div style="display:flex;justify-content:space-between;align-items:center;'
         f'gap:12px;padding:4px 0">'
-        f'<span style="font-size:0.82rem;font-weight:700;color:{_NAVY}">Final score</span>'
+        f'<span style="font-size:0.82rem;font-weight:700;color:{_NAVY}">Item score (average of the 5)</span>'
         f'<span style="font-size:0.95rem;font-weight:800;color:{rcol}">{fin:.1f} / 5 · {rating}</span></div>'
     )
     html += (
@@ -997,8 +987,9 @@ def _render_final_verdict(result: dict) -> None:
     weights = result.get("weights") or {}
     if weights:
         w_labels = {"learning": "Learning", "practice": "Practice",
-                    "exit_ticket": "Exit Ticket", "classroom": "Classroom"}
-        wcols = st.columns(4)
+                    "exit_ticket": "Exit Ticket", "overall": "Overall (teacher)",
+                    "classroom": "Classroom"}
+        wcols = st.columns(len(w_labels))
         for col, (k, lbl) in zip(wcols, w_labels.items()):
             col.metric(lbl, f"{weights.get(k, 0)}%")
 

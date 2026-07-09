@@ -1,33 +1,38 @@
-"""Flow B — Activity Level Feedback (Spec §8). Rule-based, no external API."""
+"""Flow B — Activity/lesson-level rating (rating logic per ratings.txt, 2026-07-09).
+
+Section ratings:
+  Learning     = average of the item ratings (Flow A), −0.2 if any reported error
+                 or negative learning feedback.
+  Practice     = average of the practice option scores across teachers, −0.2 if
+                 any negative key observation.
+  Exit Ticket  = average of the exit option scores across teachers, −0.2 if any
+                 negative key observation.
+  Overall      = average of the teachers' 1–5 overall lesson rating.
+
+Lesson rating = weighted blend of the sections that have data:
+  Learning 40 · Practice 20 · Exit 5 · Overall 10 · Classroom 25
+  (weights of missing sections — e.g. no classroom — are dropped and the rest
+  are rescaled). Then −0.2 if the "additional suggestions" flag an error.
+No divergence penalty (divergence is shown as info only).
+"""
 from __future__ import annotations
 
-from config.settings import (
-    WEIGHTING_LEARNING, WEIGHTING_PRACTICE,
-    WEIGHTING_EXIT_TICKET, WEIGHTING_CLASSROOM,
-)
 from processing.scoring import (
-    score_section_row, score_classroom_record, rag_from_score, safe_float,
+    score_section_row, score_classroom_record, rag_from_score,
+    has_negative_feedback,
 )
 from utils.helpers import normalize_name
 
+# Lesson-level weights (percentages) — see ratings.txt.
+_WEIGHTS = {
+    "learning":  40,
+    "practice":  20,
+    "exit":       5,
+    "overall":   10,
+    "classroom": 25,
+}
 
-def _compute_weights(has_classroom: bool) -> tuple[float, float, float, float]:
-    """Return fractional weights (sum to 1.0), redistributing if no classroom data."""
-    if has_classroom:
-        total = WEIGHTING_LEARNING + WEIGHTING_PRACTICE + WEIGHTING_EXIT_TICKET + WEIGHTING_CLASSROOM
-        return (
-            WEIGHTING_LEARNING / total,
-            WEIGHTING_PRACTICE / total,
-            WEIGHTING_EXIT_TICKET / total,
-            WEIGHTING_CLASSROOM / total,
-        )
-    total = WEIGHTING_LEARNING + WEIGHTING_PRACTICE + WEIGHTING_EXIT_TICKET
-    return (
-        WEIGHTING_LEARNING / total,
-        WEIGHTING_PRACTICE / total,
-        WEIGHTING_EXIT_TICKET / total,
-        0.0,
-    )
+_SECTION_PENALTY = 0.2   # −0.2 for reported errors / negative feedback
 
 
 _BACKFILL_FIELDS = (
@@ -38,19 +43,15 @@ _BACKFILL_FIELDS = (
 
 
 def _section_teacher_rows(lesson_rows: list[dict]) -> list[dict]:
-    """One row per unique teacher with section-level fields merged from all their rows.
-
-    In merged-cell Google Sheets exports, overall_rating and suggestions appear on
-    the last/summary row, not the first item row. We take a mutable copy of the first
-    row and backfill any missing fields from subsequent rows for the same teacher.
-    """
+    """One row per unique teacher with section-level fields merged from all their
+    rows (section fields live on the block's first/summary row)."""
     seen: set[str] = set()
     rows: list[dict] = []
     for row in lesson_rows:
         norm = normalize_name(row.get("reviewer_name", ""))
         if norm and norm not in seen:
             seen.add(norm)
-            rows.append(dict(row))  # mutable copy
+            rows.append(dict(row))
     for teacher_row in rows:
         norm = normalize_name(teacher_row.get("reviewer_name", ""))
         for field in _BACKFILL_FIELDS:
@@ -63,46 +64,21 @@ def _section_teacher_rows(lesson_rows: list[dict]) -> list[dict]:
     return rows[:3]
 
 
-def _learning_score_from_flow_a(flow_a_results: list[dict]) -> tuple[float, bool, int, int]:
-    """Return (avg_score, majority_bad, rated_count, total_count).
-
-    Only items that are actually rated (Good/Average/Bad — i.e. reviewed by ≥3
-    teachers) contribute to the score. `rated_count` vs `total_count` lets the
-    caller tell when the section is only partially reviewed (some items Pending),
-    so it isn't misleadingly marked Good/Average off a single rated item.
-    """
-    total = len(flow_a_results)
-    rated = [r for r in flow_a_results
-             if r.get("rating") in ("Good", "Average", "Bad") and r.get("score")]
-    if not rated:
-        return 3.0, False, 0, total
-    avg = sum(r["score"] for r in rated) / len(rated)
-    bad_count = sum(1 for r in rated if r.get("rating") == "Bad")
-    majority_bad = bad_count > len(rated) / 2
-    return round(avg, 2), majority_bad, len(rated), total
+def _avg(vals: list[float], default: float = 0.0) -> float:
+    vals = [v for v in vals if v]
+    return round(sum(vals) / len(vals), 2) if vals else default
 
 
-def _build_section_summary(label: str, score: float, teacher_rows: list[dict],
-                            obs_field: str, quality_field: str) -> dict:
-    # Round to 1 decimal BEFORE rating so the shown score and rating agree.
-    score = round(score, 1)
-    rating = rag_from_score(score)
-    observations = [r.get(obs_field, "").strip() for r in teacher_rows if r.get(obs_field)]
-    quality_vals  = [r.get(quality_field, "").strip() for r in teacher_rows if r.get(quality_field)]
-    rationale = (
-        f"{rating} — average {label} score {score:.1f}/5 from {len(teacher_rows)} teacher(s). "
-        f"Bands: Good ≥4.0, Average 2.5–3.9, Bad <2.5."
-    )
-    if observations:
-        rationale += " Key observations: " + " | ".join(observations[:3])[:300]
-    return {"rating": rating, "score": score, "rationale": rationale}
+def _section_dict(score: float, rating: str, rationale: str,
+                  penalty: bool = False) -> dict:
+    return {"score": round(score, 1), "rating": rating,
+            "rationale": rationale, "penalty_applied": penalty}
 
 
-def _build_recommendations(section_ratings: dict, flow_a_results: list[dict],
-                            majority_bad: bool) -> list[str]:
+def _build_recommendations(section_ratings: dict, flow_a_results: list[dict]) -> list[str]:
     recs = []
-    for section, label in [("learning","Learning"), ("practice","Practice"),
-                            ("exit_ticket","Exit Ticket"), ("classroom_review","Classroom")]:
+    for section, label in [("learning", "Learning"), ("practice", "Practice"),
+                            ("exit_ticket", "Exit Ticket"), ("classroom_review", "Classroom")]:
         rating = section_ratings.get(section, {}).get("rating", "")
         if rating == "Bad":
             recs.append(f"Revise {label} section — scored below threshold.")
@@ -112,17 +88,8 @@ def _build_recommendations(section_ratings: dict, flow_a_results: list[dict],
     bad_items = [r["item_ref"] for r in flow_a_results if r.get("rating") == "Bad"]
     if bad_items:
         recs.append(f"Priority item revisions needed: {', '.join(bad_items[:5])}")
-
-    div_items = [r["item_ref"] for r in flow_a_results if r.get("divergences")]
-    if div_items:
-        recs.append(
-            f"Review teacher divergences on items: {', '.join(div_items[:5])}. "
-            "Consider scheduling a calibration session."
-        )
-
     if not recs:
         recs.append("Lesson is performing well. Consider sharing as a model lesson.")
-
     return recs[:5]
 
 
@@ -132,146 +99,114 @@ def run_flow_b(
     flow_a_results: list[dict],
     classroom_records: list[dict],
     learnosity_content: dict,
+    error_reports: list[dict] | None = None,
 ) -> dict:
+    error_reports = error_reports or []
     meta = next((r for r in lesson_rows if r.get("activity_ref")), lesson_rows[0] if lesson_rows else {})
-    grade, chapter, lesson = meta.get("grade",""), meta.get("chapter",""), meta.get("lesson","")
+    grade, chapter, lesson = meta.get("grade", ""), meta.get("chapter", ""), meta.get("lesson", "")
 
     teachers = _section_teacher_rows(lesson_rows)
-    has_classroom = bool(classroom_records)
-    w_l, w_p, w_e, w_c = _compute_weights(has_classroom)
-
-    # ── Section scores ────────────────────────────────────────────────────────
-    # Learning: from Flow A
-    learning_score, majority_bad, rated_items, total_items_la = _learning_score_from_flow_a(flow_a_results)
-    # The learning section is only "complete" when every item has ≥3 reviews.
-    # If any item is still Pending, we must not present a confident Good/Average.
-    # No learning items → nothing to block on; otherwise require all items rated.
-    learning_complete = (total_items_la == 0) or (rated_items == total_items_la)
-    learning_pending  = max(total_items_la - rated_items, 0)
-
-    # Practice + Exit Ticket: from section-level teacher rows
     section_scores = [score_section_row(r) for r in teachers]
-    avg_practice    = sum(s["practice_score"] for s in section_scores) / max(len(section_scores), 1)
-    avg_exit        = sum(s["exit_ticket_score"] for s in section_scores) / max(len(section_scores), 1)
-    teacher_ratings = [s["overall_rating"] for s in section_scores]
-    valid_ratings   = [x for x in teacher_ratings if x > 0]
-    avg_teacher_rating = round(sum(valid_ratings) / len(valid_ratings), 2) if valid_ratings else 0.0
 
-    # Classroom: aggregate all records
-    classroom_score = 0.0
-    if classroom_records:
-        cr_scores = [score_classroom_record(r) for r in classroom_records]
-        classroom_score = round(sum(cr_scores) / len(cr_scores), 2)
-
-    # ── Section ratings ───────────────────────────────────────────────────────
-    # The learning section is rated as an aggregate of the individual item
-    # ratings (each item is rated from whatever teacher reviews it has).
-    learning_summary = _build_section_summary(
-        "Learning", learning_score, teachers, "understanding_details", "understanding"
+    # ── Learning: average of item ratings, −0.2 for reported errors / neg feedback
+    rated = [r["score"] for r in flow_a_results
+             if r.get("rating") in ("Good", "Average", "Bad") and r.get("score")]
+    learning_base = round(sum(rated) / len(rated), 2) if rated else 0.0
+    learning_neg = bool(error_reports) or any(
+        has_negative_feedback(r.get("understanding_details", ""),
+                              r.get("examples_practice_details", ""),
+                              r.get("engagement_details", ""))
+        for r in lesson_rows
     )
+    learning_score = round(max(1.0, learning_base - (_SECTION_PENALTY if learning_neg and learning_base else 0.0)), 1) if learning_base else 0.0
 
-    section_ratings: dict = {
-        "learning": learning_summary,
-        "practice": _build_section_summary(
-            "Practice", avg_practice, teachers, "practice_observations", "practice_quality"
-        ),
-        "exit_ticket": _build_section_summary(
-            "Exit Ticket", avg_exit, teachers, "exit_ticket_observations", "exit_ticket_quality"
-        ),
-        "teacher_overall": {
-            "rating": rag_from_score(avg_teacher_rating) if avg_teacher_rating > 0 else "N/A",
-            "score": round(avg_teacher_rating, 2),
-            "rationale": (
-                f"Teachers' self-reported overall rating: {avg_teacher_rating:.1f}/5 "
-                f"(average of {len(valid_ratings)} explicit rating(s))."
-                if valid_ratings
-                else "No explicit overall ratings provided by teachers."
-            ),
-        },
-        "classroom_review": {
-            "rating": rag_from_score(classroom_score) if has_classroom else "N/A",
-            "score": classroom_score,
-            "rationale": (
-                f"Aggregated {len(classroom_records)} classroom session(s). "
-                f"Average score: {classroom_score:.1f}/5."
-                if has_classroom else "No classroom reviews available."
-            ),
-        },
+    # ── Practice: average of option scores, −0.2 for negative observations
+    practice_base = _avg([s["practice_score"] for s in section_scores])
+    practice_neg = any(has_negative_feedback(r.get("practice_observations", "")) for r in teachers)
+    practice_score = round(max(1.0, practice_base - (_SECTION_PENALTY if practice_neg and practice_base else 0.0)), 1) if practice_base else 0.0
+
+    # ── Exit ticket: same shape as practice
+    exit_base = _avg([s["exit_ticket_score"] for s in section_scores])
+    exit_neg = any(has_negative_feedback(r.get("exit_ticket_observations", "")) for r in teachers)
+    exit_score = round(max(1.0, exit_base - (_SECTION_PENALTY if exit_neg and exit_base else 0.0)), 1) if exit_base else 0.0
+
+    # ── Overall (teachers' own 1–5 rating) and Classroom
+    overall_score = _avg([s["overall_rating"] for s in section_scores])
+    has_classroom = bool(classroom_records)
+    classroom_score = round(sum(score_classroom_record(r) for r in classroom_records) / len(classroom_records), 2) if has_classroom else 0.0
+
+    # ── Weighted lesson score over the sections that actually have data ─────────
+    components = {
+        "learning":  learning_score,
+        "practice":  practice_score,
+        "exit":      exit_score,
+        "overall":   overall_score,
+        "classroom": classroom_score,
     }
+    active = {k: v for k, v in components.items() if v > 0}
+    tot_w = sum(_WEIGHTS[k] for k in active) or 1
+    eff_weights = {k: round(_WEIGHTS[k] / tot_w * 100) for k in active}
+    weighted = sum(components[k] * _WEIGHTS[k] for k in active) / tot_w
 
-    # ── Weighted final score ──────────────────────────────────────────────────
-    weighted = (
-        learning_score * w_l
-        + avg_practice  * w_p
-        + avg_exit      * w_e
-        + (classroom_score * w_c if has_classroom else 0)
-    )
-    weighted = round(weighted, 2)
-
-    # Teacher's holistic self-rating carries equal weight (50%) to the
-    # algorithmic section scores — it is the strongest single signal.
-    if avg_teacher_rating > 0:
-        weighted = round(weighted * 0.50 + avg_teacher_rating * 0.50, 2)
-
-    # Divergence penalty: when teachers significantly disagree on items,
-    # confidence in the lesson quality is reduced.
-    items_with_divergence = sum(1 for r in flow_a_results if r.get("divergences"))
-    total_items = max(len(flow_a_results), 1)
-    divergence_ratio = items_with_divergence / total_items
-    has_divergence = items_with_divergence > 0
-    div_penalty = 0.0
-    if has_divergence:
-        div_penalty = round(divergence_ratio * 0.5, 2)
-        weighted = max(1.0, round(weighted - div_penalty, 2))
-
-    # Round to 1 decimal BEFORE rating so the shown weighted score and the final
-    # rating always agree (no "4.0 but Average" contradiction).
-    weighted = round(weighted, 1)
-
-    # ── Flow A constraint: majority bad → cannot be Good ─────────────────────
-    override_applied = False
-    override_rationale = ""
+    # Lesson-wide penalty: negative feedback / errors in additional suggestions.
+    lesson_neg = any(has_negative_feedback(r.get("additional_suggestions", "")) for r in teachers)
+    if lesson_neg:
+        weighted -= _SECTION_PENALTY
+    weighted = round(max(1.0, weighted), 1)
     final_rating = rag_from_score(weighted)
 
-    if majority_bad and final_rating == "Good":
-        final_rating = "Average"
-        override_applied = True
-        override_rationale = (
-            "Majority of learning items rated Bad by Flow A. "
-            "Final rating capped at Average per spec constraint."
-        )
+    # ── Section ratings for display ────────────────────────────────────────────
+    def _sec(label, base, score, neg):
+        if not base:
+            return _section_dict(0.0, "N/A", f"No {label.lower()} feedback provided.")
+        r = rag_from_score(score)
+        txt = f"{r} — average {label} score {score:.1f}/5 from {len(teachers)} teacher(s)."
+        if neg:
+            txt += f" (−{_SECTION_PENALTY} penalty for reported errors / negative feedback.)"
+        txt += " Bands: Good ≥4.0, Average 2.5–3.9, Bad <2.5."
+        return _section_dict(score, r, txt, neg)
 
-    # ── Summary text ──────────────────────────────────────────────────────────
-    section_labels = {"Good": "strong", "Average": "acceptable", "Bad": "weak"}
-    parts = [
-        f"Learning {section_labels.get(section_ratings['learning']['rating'],'?')}",
-        f"Practice {section_labels.get(section_ratings['practice']['rating'],'?')}",
-        f"Exit Ticket {section_labels.get(section_ratings['exit_ticket']['rating'],'?')}",
-    ]
-    if has_classroom:
-        parts.append(f"Classroom {section_labels.get(section_ratings['classroom_review']['rating'],'?')}")
-    one_line = f"{final_rating} — " + ", ".join(parts) + "."
+    section_ratings = {
+        "learning":    _sec("Learning", learning_base, learning_score, learning_neg),
+        "practice":    _sec("Practice", practice_base, practice_score, practice_neg),
+        "exit_ticket": _sec("Exit Ticket", exit_base, exit_score, exit_neg),
+        "teacher_overall": _section_dict(
+            overall_score, rag_from_score(overall_score) if overall_score else "N/A",
+            (f"Teachers' overall rating: {overall_score:.1f}/5." if overall_score
+             else "No overall rating provided by teachers."),
+        ),
+        "classroom_review": _section_dict(
+            classroom_score, rag_from_score(classroom_score) if has_classroom else "N/A",
+            (f"Aggregated {len(classroom_records)} classroom session(s): {classroom_score:.1f}/5."
+             if has_classroom else "No classroom reviews available."),
+        ),
+    }
 
-    div_note = (
-        f" ⚠️ {items_with_divergence}/{total_items} item(s) flagged for teacher divergence"
-        f" (−{div_penalty:.2f} penalty)." if has_divergence else ""
-    )
-    teacher_blend_note = (
-        f" Teacher self-rating {avg_teacher_rating:.1f}/5 blended in (50% weight).{div_note}"
-        if avg_teacher_rating > 0 else div_note
-    )
+    # ── Final rationale (clear, shows the weighted maths) ──────────────────────
+    parts = [f"{k.title()} {components[k]:.1f}×{eff_weights[k]}%" for k in active]
     final_rationale = (
-        f"Weighted score: {weighted:.2f}/5 "
-        f"(Learning {learning_score:.1f}×{w_l:.0%}, "
-        f"Practice {avg_practice:.1f}×{w_p:.0%}, "
-        f"Exit Ticket {avg_exit:.1f}×{w_e:.0%}"
-        + (f", Classroom {classroom_score:.1f}×{w_c:.0%}" if has_classroom else "")
-        + f").{teacher_blend_note} "
-        + ("No classroom reviews — weights redistributed. " if not has_classroom else "")
-        + (override_rationale if override_applied else "")
+        f"Weighted lesson score {weighted:.1f}/5 = " + " + ".join(parts) + ". "
+        + ("No classroom review — its weight was redistributed. " if not has_classroom else "")
+        + (f"−{_SECTION_PENALTY} penalty (errors/negative feedback in suggestions). " if lesson_neg else "")
+        + "Bands: Good ≥4.0, Average 2.5–3.9, Bad <2.5."
     )
 
-    recommendations = _build_recommendations(section_ratings, flow_a_results, majority_bad)
+    section_labels = {"Good": "strong", "Average": "acceptable", "Bad": "weak", "N/A": "n/a"}
+    one_line = (
+        f"{final_rating} — Learning {section_labels.get(section_ratings['learning']['rating'],'?')}, "
+        f"Practice {section_labels.get(section_ratings['practice']['rating'],'?')}, "
+        f"Exit Ticket {section_labels.get(section_ratings['exit_ticket']['rating'],'?')}."
+    )
+
+    # Score breakdown for the lesson-level "how it's calculated" panel.
+    score_breakdown = {
+        "components":    {k: components[k] for k in active},
+        "weights":       eff_weights,
+        "weighted":      weighted,
+        "rating":        final_rating,
+        "lesson_penalty": _SECTION_PENALTY if lesson_neg else 0.0,
+        "has_classroom": has_classroom,
+    }
 
     return {
         "activity_ref":              activity_ref,
@@ -281,24 +216,23 @@ def run_flow_b(
         "section_ratings":           section_ratings,
         "weighted_score":            weighted,
         "final_rating":              final_rating,
-        "override_applied":          override_applied,
-        "override_rationale":        override_rationale,
+        "override_applied":          False,
+        "override_rationale":        "",
         "final_rationale":           final_rationale,
+        "lesson_score_breakdown":    score_breakdown,
         "one_line_summary":          one_line,
-        "actionable_recommendations": recommendations,
-        "teacher_names":             [r.get("reviewer_name","") for r in teachers],
-        "teacher_ratings":           teacher_ratings,
-        "avg_teacher_rating":        avg_teacher_rating,
-        "has_divergence":            has_divergence,
-        "divergence_count":          items_with_divergence,
-        "learning_complete":         learning_complete,
-        "learning_items_rated":      rated_items,
-        "learning_items_total":      total_items_la,
+        "actionable_recommendations": _build_recommendations(section_ratings, flow_a_results),
+        "teacher_names":             [r.get("reviewer_name", "") for r in teachers],
+        "teacher_ratings":           [s["overall_rating"] for s in section_scores],
+        "avg_teacher_rating":        overall_score,
+        "has_divergence":            any(r.get("divergences") for r in flow_a_results),
+        "divergence_count":          sum(1 for r in flow_a_results if r.get("divergences")),
         "flow_a_results":            flow_a_results,
         "weights": {
-            "learning":     round(w_l * 100),
-            "practice":     round(w_p * 100),
-            "exit_ticket":  round(w_e * 100),
-            "classroom":    round(w_c * 100),
+            "learning":    eff_weights.get("learning", 0),
+            "practice":    eff_weights.get("practice", 0),
+            "exit_ticket": eff_weights.get("exit", 0),
+            "overall":     eff_weights.get("overall", 0),
+            "classroom":   eff_weights.get("classroom", 0),
         },
     }

@@ -1,0 +1,99 @@
+
+By the end of this learning item, most students will:
+
+Understand the concepts clearly. 5 rating 
+
+Need significant support to understand concept. 3 rating
+
+Not understand the concept. 2 rating
+
+Does the learning item have enough examples and guided practice to reinforce the learning?
+
+Yes, adequate examples and guided practice are present. 5 rating
+
+No, more examples or guided questions are needed.3 rating
+
+How engaging/fun is this item?
+
+Quite engaging. 5 rating
+
+Needs more fun/engagement. 3 rating
+
+The learning item is:
+
+Too long. 3 rating
+ 
+Too short. 3 rating
+
+Just the right length. 5 rating
+
+The language used in this learning item:
+
+Is text heavy. 3 rating
+
+Has many difficult words that may be hard for students to read/understand. 3 rating
+
+Is clear and age-appropriate. 5 rating
+
+
+Practice Sections (1)
+This is generalised feedback for the entire practice section. Please look at all the questions before answering.
+Practice
+9 items
+The questions in the practice section are:
+
+Too easy. 3 rating
+
+Too difficult. 3 rating
+
+Having just the right mix of challenge. 5 rating
+ 
+Fun and engaging. 5 rating
+
+Not engaging. 3 rating
+
+Add your key observations (Mandatory)
+[If there are any error pointed here or negative feedback, then it should have a penalty of -0.2 for this section]
+Exit Ticket (1)
+This is generalised feedback for the entire exit ticket section. Please look at all the questions before answering.
+Exit Ticket
+5 items
+The questions in the exit ticket section are:
+
+Too easy. 3 rating
+
+Too difficult. 3 rating
+
+Having just the right mix of challenge. 5 rating
+
+Fun and engaging. 5 rating
+
+Not engaging.3 rating
+
+Add your key observations (Mandatory)
+[If there are any error pointed here or negative feedback, then it should have a penalty of -0.2 for this section]
+Overall Review
+Rate the overall lesson from 1-5:
+
+5 - Excellent: Engaging, clear, effective with adequate practice. 5 rating
+
+4 - Very Good: Mostly clear, sufficient practice, mostly engaging. 4 rating
+
+3 - Satisfactory: Some support will be needed; could use more practice/engagement. 3 rating
+
+2 - Needs Improvement: Heavy support needed, insufficient practice, low engagement. 2 rating
+
+1 - Unsatisfactory: Learning objectives unmet, insufficient practice, hard to engage. 1 rating
+Please share any additional suggestions for improving the lesson. (Optional)
+[If there are any error pointed here or negative feedback, then it should have a penalty of -0.2 for this entire lesson]
+
+Learning Section rating: Average of (rating of all the questions in this section) and add penalty of - 0.2 only if any of the teacher has given any negative feedback or marked incorrect answers, incorrect solution, incorrect image, confusion in the question else do not add -0.2
+Practice Section rating: Average of (rating of all the questions in this section) + Average of (Add your key observations rating) by all 3 teachers
+Exit ticket rating: Average of (rating of all the questions in this section) + Average of (Add your key observations rating) by all 3 teachers
+Lesson rating: Distribute and rate as given below
+Learning is 40%
+Practice is 20%
+Exit is 5%
+Average of (Rate the overall lesson) by 3 teachers is 10%  
+Classroom rating is 25% 
+If there is no Classroom rating then distribute the weights and rate it. 

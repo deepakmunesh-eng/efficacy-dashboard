@@ -65,10 +65,11 @@ def _check_credentials() -> list[str]:
 
 
 # Bump this when scoring/gating logic changes so cached results are recomputed
-# on the next refresh (no force needed). v5: round score to 1 decimal BEFORE
-# rating (shown score & rating now always agree); rationale uses true dimension
-# averages; added score_breakdown for the "how it's calculated" panel.
-_LOGIC_VERSION = "v5"
+# on the next refresh (no force needed). v6: new rating logic per ratings.txt —
+# 5 direct dimension scores (Length is a score, not a multiplier), section
+# averages, weights Learning40/Practice20/Exit5/Overall10/Classroom25 (rescaled
+# if a section is missing), targeted −0.2 penalties, no divergence penalty.
+_LOGIC_VERSION = "v6"
 
 
 # ── Core pipeline ─────────────────────────────────────────────────────────────
@@ -241,7 +242,8 @@ def process_all_lessons(force: bool = False) -> dict:
         # Flow B
         try:
             flow_b_result = run_flow_b(
-                activity_ref, lesson_rows, flow_a_results, classroom, learnosity_content
+                activity_ref, lesson_rows, flow_a_results, classroom, learnosity_content,
+                error_reports=lesson_errors,
             )
         except Exception as exc:
             st.warning(f"Flow B failed for {activity_ref}: {exc}")

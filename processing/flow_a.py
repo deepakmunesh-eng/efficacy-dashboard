@@ -35,15 +35,18 @@ def _teacher_summary(row: dict, scores: dict) -> dict:
     if row.get("length"):
         parts.append(f"Length: {row['length']}")
 
+    # Dimensions score 2/3/5; anything below 5 (i.e. ≤3) is a noted concern.
     concerns = []
-    if scores.get("understanding", 5) < 3:
+    if scores.get("understanding", 5) < 5:
         concerns.append("understanding gaps")
-    if scores.get("engagement", 5) < 3:
+    if scores.get("engagement", 5) < 5:
         concerns.append("low engagement")
-    if scores.get("examples", 5) < 3:
+    if scores.get("examples", 5) < 5:
         concerns.append("insufficient examples")
-    if scores.get("length_mod", 1) < 0.8:
+    if scores.get("length", 5) < 5:
         concerns.append(f"length issue ({row.get('length','')})")
+    if scores.get("language", 5) < 5:
+        concerns.append("language/readability")
 
     return {
         "name": row.get("reviewer_name", ""),
@@ -84,22 +87,17 @@ def process_learning_item(
     all_scores = [score_item_row(row) for row in teacher_rows]
     n_teachers = len(teacher_rows)
 
-    # Per-dimension AVERAGES across teachers (not just the first teacher).
-    _dims = ["understanding", "engagement", "examples", "language"]
+    # Per-dimension AVERAGES across teachers (Length is now a direct dimension).
+    _dims = ["understanding", "engagement", "examples", "length", "language"]
     dim_avgs = {d: round(sum(s[d] for s in all_scores) / n_teachers, 1) for d in _dims}
-    length_factor = round(sum(s["length_mod"] for s in all_scores) / n_teachers, 2)
 
-    # Base score = mean of each teacher's item score (dimension avg × length factor).
-    base_score = round(sum(s["item_score"] for s in all_scores) / n_teachers, 2)
-
-    # Detect divergences and apply a small penalty per diverging dimension.
-    divergences = detect_divergences(all_scores)
-    penalty = round(len(divergences) * 0.2, 2)
-
-    # Round to 1 decimal FIRST, then rate — so the number shown and the rating
-    # always agree (previously 3.97 displayed as "4.0" but rated Average).
-    final_score = round(max(1.0, base_score - penalty), 1)
+    # Item score = mean of the 5 dimensions (average of the teachers' item scores).
+    # No divergence penalty at item level (penalties are section-level, per spec).
+    final_score = round(sum(s["item_score"] for s in all_scores) / n_teachers, 1)
     rating = rag_from_score(final_score)
+
+    # Divergence is detected for INFO only (shown as "teachers differ"), no penalty.
+    divergences = detect_divergences(all_scores)
 
     # Build per-teacher summaries
     teacher_summaries = {}
@@ -111,27 +109,19 @@ def process_learning_item(
     score_breakdown = {
         "teacher_count":       n_teachers,
         "dimension_averages":  dim_avgs,
-        "length_factor":       length_factor,
-        "base_score":          base_score,
-        "divergence_penalty":  penalty,
-        "diverging_dimensions": [d["dimension"] for d in divergences],
         "final_score":         final_score,
         "rating":              rating,
+        "diverging_dimensions": [d["dimension"] for d in divergences],
     }
 
-    # Concise, accurate rationale (uses averages, matches the shown score/rating).
-    div_dims = ", ".join(d["dimension"] for d in divergences)
+    # Concise, accurate rationale (mean of the 5 dimensions; matches shown score).
     rationale = (
-        f"{rating} — final score {final_score:.1f}/5, from {n_teachers} teacher review(s). "
-        f"Dimension averages: understanding {dim_avgs['understanding']:.1f}, "
+        f"{rating} — {final_score:.1f}/5, the average of 5 dimensions across "
+        f"{n_teachers} teacher(s): understanding {dim_avgs['understanding']:.1f}, "
         f"engagement {dim_avgs['engagement']:.1f}, examples {dim_avgs['examples']:.1f}, "
-        f"language {dim_avgs['language']:.1f}"
-        + (f"; length factor ×{length_factor:.2f}" if length_factor < 1.0 else "")
-        + f" → base {base_score:.1f}/5."
+        f"length {dim_avgs['length']:.1f}, language {dim_avgs['language']:.1f}. "
+        f"Bands: Good ≥4.0, Average 2.5–3.9, Bad <2.5."
     )
-    if penalty:
-        rationale += f" Divergence penalty −{penalty:.1f} (teachers disagreed on {div_dims})."
-    rationale += " Bands: Good ≥4.0, Average 2.5–3.9, Bad <2.5."
 
     # AI expert review placeholder — populated when Learnosity content becomes available
     learnosity_note = learnosity_content.get("note", "")

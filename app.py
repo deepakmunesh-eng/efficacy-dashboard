@@ -69,7 +69,7 @@ def _check_credentials() -> list[str]:
 # 5 direct dimension scores (Length is a score, not a multiplier), section
 # averages, weights Learning40/Practice20/Exit5/Overall10/Classroom25 (rescaled
 # if a section is missing), targeted −0.2 penalties, no divergence penalty.
-_LOGIC_VERSION = "v6"
+_LOGIC_VERSION = "v7"
 
 
 # ── Core pipeline ─────────────────────────────────────────────────────────────

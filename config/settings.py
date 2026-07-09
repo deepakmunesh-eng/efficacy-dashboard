@@ -16,9 +16,12 @@ LESSON_REVIEW_XLSX_URL = (
 )
 
 # ── Classroom review admin ─────────────────────────────────────────────────────
+# Stable production URL + JSON submissions API. The old deployment-hash URL
+# (…-rhqeqhqzo-…/admin) 302-redirects to Vercel login (401); the app fetches its
+# data from /api/admin/submissions?key=… (see classroom_reader).
 CLASSROOM_ADMIN_URL = os.getenv(
     "CLASSROOM_ADMIN_URL",
-    "https://classroomreviewagent-rhqeqhqzo-deepakmunesh-engs-projects.vercel.app/admin",
+    "https://classroomreviewagent.vercel.app/api/admin/submissions",
 )
 CLASSROOM_ADMIN_KEY = os.getenv("CLASSROOM_ADMIN_KEY", "Cu3L3@rn")
 

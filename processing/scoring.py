@@ -48,22 +48,44 @@ _PRACTICE_OPTIONS = [
     ("not engaging",       3.0),
 ]
 
-# ── Negative-feedback / error signals (trigger the −0.2 penalties) ─────────────
+# ── Error signals (trigger the −0.2 penalties) ─────────────────────────────────
+# Genuine defects + confusion (per user decision 2026-07-09) — NOT constructive
+# suggestions. Reported-error tab entries also trigger the learning penalty.
+# NOTE: we deliberately do NOT match bare "error" — teachers suggest adding
+# "Find the error" questions, which is a suggestion, not a defect. We match
+# "error in" / "an error" / "there is error" instead.
 _NEGATIVE_SIGNALS = [
-    "incorrect", "error", "wrong", "mistake", "typo", "confus", "unclear",
-    "not clear", "misleading", "broken", "cut off", "cut-off", "overlap",
-    "does not", "doesn't", "not correct", "inconsistent", "missing",
+    # incorrect answers / solutions / images
+    "incorrect", "inaccurate",
+    "wrong answer", "wrong solution", "wrong option", "is wrong", "answer is wrong",
+    "error in", "an error", "errors in", "there is error", "has an error",
+    "typo", "mistake", "not correct",
+    # confusion (user-requested)
+    "confusion", "confusing",
+    # misleading content / technical bugs
+    "misleading", "not working", "doesn't work", "does not work",
+    "not popping", "broken",
 ]
 
-# Classroom Q1-Q5, Q7-Q9 4-option dropdowns → 1–4 scale
-_CLASSROOM_OPTION_SCORES = {
-    "strongly agree":    4, "agree":          3, "disagree":      2, "strongly disagree": 1,
-    "excellent":         4, "good":           3, "average":       2, "poor":              1,
-    "always":            4, "usually":        3, "sometimes":     2, "rarely":            1,
-    "very engaging":     4, "engaging":       3, "somewhat":      2, "not engaging":      1,
-    "well":              4, "mostly":         3, "partially":     2, "not well":          1,
-    "very appropriate":  4, "appropriate":    3, "not appropriate":   1,
-    "too challenging":   2, "just right":     4, "too easy":      2, "very easy":         1,
+# Classroom coded answers (q1–q5, q7–q9) → 0–5 score. q11 is a 1–5 number.
+_CLASSROOM_CODE_SCORES = {
+    # q1 — students understood
+    "understood_all": 5.0, "needed_support": 3.0,
+    # q2 — engagement (learning)
+    "highly_engaging": 5.0, "engaging_in_parts": 4.0, "not_engaging": 2.0,
+    # q3 — examples / guided practice
+    "adequate": 5.0, "more_than_required": 4.0, "less_than_required": 3.0,
+    # q4 — language / readability
+    "appropriate": 5.0, "text_heavy_some": 3.0, "very_text_heavy": 2.0,
+    # q5 — consistent build-up
+    "yes_consistently": 5.0, "yes_some_points": 4.0, "limited_no": 3.0,
+    # q7 — practice difficulty
+    "right_mix": 5.0, "too_easy": 3.0, "too_difficult": 3.0,
+    # q8 — practice engagement
+    "extremely_engaging": 5.0, "somewhat_engaging": 4.0, "not_engaging_practice": 2.0,
+    # q9 — practice variety
+    "good_mix": 5.0, "some_variety": 4.0, "very_little_variety": 3.0,
+    # "other" / blank → skipped (not scored)
 }
 
 
@@ -135,29 +157,23 @@ def score_section_row(row: dict) -> dict[str, float]:
 
 
 def score_classroom_record(record: dict) -> float:
-    """Aggregate a single classroom review record to a 1–5 score."""
+    """Aggregate a single classroom review record to a 1–5 score.
+
+    Averages the mapped q1–q5 / q7–q9 coded answers plus the teacher's q11
+    overall-effectiveness rating (1–5). Unknown/'other' answers are skipped.
+    """
     q_scores = []
     for q in ["learning_q1", "learning_q2", "learning_q3", "learning_q4", "learning_q5",
               "practice_q7", "practice_q8", "practice_q9"]:
-        val = record.get(q, "")
-        if val:
-            s = _classroom_option_score(val)
-            if s:
-                q_scores.append(s / 4.0 * 5.0)  # rescale 1–4 → 1.25–5.0
+        code = (record.get(q, "") or "").strip().lower()
+        if code in _CLASSROOM_CODE_SCORES:
+            q_scores.append(_CLASSROOM_CODE_SCORES[code])
 
     q11 = safe_float(record.get("overall_effectiveness"), 0.0)
     if q11:
         q_scores.append(q11)
 
     return round(sum(q_scores) / len(q_scores), 2) if q_scores else 3.0
-
-
-def _classroom_option_score(text: str) -> float:
-    t = (text or "").lower().strip()
-    for key, val in _CLASSROOM_OPTION_SCORES.items():
-        if key in t:
-            return float(val)
-    return 2.5  # neutral
 
 
 def detect_divergences(teacher_scores: list[dict[str, float]]) -> list[dict]:

@@ -114,6 +114,25 @@ def bulk_store_results(results: dict, hashes: dict) -> None:
     _save(_HASHES_FILE, existing_h)
 
 
+def store_hashes(hashes: dict) -> None:
+    """Merge change-detection hashes into the store."""
+    d = _load(_HASHES_FILE)
+    d.update(hashes)
+    _save(_HASHES_FILE, d)
+
+
+def save_all_results(results: dict) -> None:
+    """Overwrite the results cache with the FULL current state (Complete AND
+    Pending), pruning entries for lessons no longer present. This keeps the
+    persisted cache in sync so a page load never shows a stale Complete entry for
+    a lesson that has since become Pending (e.g. lost a reviewer)."""
+    ts = time.time()
+    for res in results.values():
+        if isinstance(res, dict):
+            res.setdefault("_cached_at", ts)
+    _save(_RESULTS_FILE, results)
+
+
 # ── Curriculum review actions ─────────────────────────────────────────────────
 _CURRICULUM_FILE = CACHE_DIR / "curriculum_reviews.json"
 

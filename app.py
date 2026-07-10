@@ -36,7 +36,8 @@ from utils.deduplication import (
 from utils.cache import (
     compute_hash, has_changed, all_hashes,
     get_result, all_results as load_all_results,
-    get_all_learnosity_content, bulk_store_learnosity_content, bulk_store_results,
+    get_all_learnosity_content, bulk_store_learnosity_content,
+    store_hashes, save_all_results,
 )
 from utils.helpers import safe_float
 from dashboard.master_view import render_master_view
@@ -278,9 +279,14 @@ def process_all_lessons(force: bool = False) -> dict:
         new_hashes[activity_ref]  = combined_hash
         results[activity_ref]     = flow_b_result
 
-    # ── 4. Batch write results ────────────────────────────────────────────────
-    if new_results:
-        bulk_store_results(new_results, new_hashes)
+    # ── 4. Persist results + hashes ──────────────────────────────────────────
+    # Store change-detection hashes for the freshly computed lessons, then
+    # overwrite the whole results cache with the CURRENT state (Complete AND
+    # Pending). This prunes stale entries — e.g. a lesson that was Complete but is
+    # now Pending (lost a reviewer) no longer lingers as an old Complete result.
+    if new_hashes:
+        store_hashes(new_hashes)
+    save_all_results(results)
 
     # ── 5. AI Expert Reviews are generated LAZILY (on lesson open) ────────────
     # Each review is a ~10-25s LLM call; generating all Complete lessons here made

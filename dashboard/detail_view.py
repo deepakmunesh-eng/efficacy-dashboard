@@ -1104,11 +1104,14 @@ def render_detail_view(result: dict) -> None:
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
     # ── Section tabs ──────────────────────────────────────────────────────────
-    tab_learn, tab_practice, tab_exit, tab_ai = st.tabs([
+    _errs = result.get("error_reports") or []
+    _err_label = f"🚩  Errors Reported ({len(_errs)})" if _errs else "🚩  Errors Reported"
+    tab_learn, tab_practice, tab_exit, tab_ai, tab_errors = st.tabs([
         "📖  Learning Section",
         "✏️  Practice Section",
         "🎯  Exit Section",
         "🤖  AI Expert Review",
+        _err_label,
     ])
 
     per_teacher = result.get("_per_teacher_data", []) or []
@@ -1135,7 +1138,6 @@ def render_detail_view(result: dict) -> None:
         # Overall rating, section breakdown and final verdict live ONLY here —
         # the other section tabs show just their own content.
         _render_lesson_rating_bar(result)
-        _render_error_reports(result.get("error_reports") or [])
         # AI review is generated lazily on first open (keeps refresh fast).
         ai_review = result.get("ai_expert_review")
         if not ai_review and result.get("_per_teacher_data"):
@@ -1145,3 +1147,13 @@ def render_detail_view(result: dict) -> None:
         if status != "Pending":
             st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
             _render_final_verdict(result)
+
+    with tab_errors:
+        if _errs:
+            st.caption(
+                "Concrete defects teachers flagged in the Errors Reported sheet. "
+                "Item-specific errors also apply a penalty to that learning item."
+            )
+        else:
+            st.success("No errors reported for this lesson. ✅")
+        _render_error_reports(_errs)

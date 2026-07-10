@@ -70,7 +70,7 @@ def _check_credentials() -> list[str]:
 # 5 direct dimension scores (Length is a score, not a multiplier), section
 # averages, weights Learning40/Practice20/Exit5/Overall10/Classroom25 (rescaled
 # if a section is missing), targeted −0.2 penalties, no divergence penalty.
-_LOGIC_VERSION = "v9"
+_LOGIC_VERSION = "v10"
 
 
 # ── Core pipeline ─────────────────────────────────────────────────────────────
@@ -235,7 +235,8 @@ def process_all_lessons(force: bool = False) -> dict:
 
         # Flow A
         try:
-            flow_a_results = run_flow_a(activity_ref, lesson_rows, learnosity_content)
+            flow_a_results = run_flow_a(activity_ref, lesson_rows, learnosity_content,
+                                        error_reports=lesson_errors)
         except Exception as exc:
             st.warning(f"Flow A failed for {activity_ref}: {exc}")
             flow_a_results = []

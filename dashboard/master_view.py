@@ -372,12 +372,43 @@ def render_master_view(all_results: dict, on_select_lesson) -> None:
 
     if not nav_program:
         _render_program_select(df)
+        _render_all_errors(all_results)
     elif not nav_grade:
         _render_grade_select(df)
     elif not nav_chapter:
         _render_chapter_select(df, nav_grade)
     else:
         _render_lesson_list(df, nav_grade, nav_chapter, on_select_lesson)
+
+
+def _render_all_errors(all_results: dict) -> None:
+    """Program-level view of every error reported across all lessons."""
+    rows = []
+    for ref, res in all_results.items():
+        for e in (res.get("error_reports") or []):
+            rows.append({
+                "Grade":    (res.get("grade") or "").strip(),
+                "Lesson":   (res.get("lesson") or ref).strip(),
+                "Item":     (e.get("item_ref") or "").strip(),
+                "Error Type": (e.get("error_type") or "").strip(),
+                "Details":  (e.get("error_details") or "").strip(),
+                "Reviewer": (e.get("reviewer_name") or "").strip(),
+            })
+    n = len(rows)
+    lessons_affected = len({(r["Lesson"]) for r in rows})
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    with st.expander(f"🚩 Errors Reported — {n} across {lessons_affected} lesson(s)", expanded=False):
+        if not rows:
+            st.success("No errors reported. ✅")
+            return
+        df = pd.DataFrame(rows).sort_values(["Grade", "Lesson"])
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.download_button(
+            "⬇ Download errors (CSV)",
+            df.to_csv(index=False).encode("utf-8"),
+            file_name="errors_reported.csv",
+            mime="text/csv",
+        )
 
 
 # ── Helpers reused by pdf_export / app sidebar ────────────────────────────────

@@ -108,17 +108,14 @@ def run_flow_b(
     teachers = _section_teacher_rows(lesson_rows)
     section_scores = [score_section_row(r) for r in teachers]
 
-    # ── Learning: average of item ratings, severity-scaled penalty
+    # ── Learning: average of the item ratings. Penalties are already applied at
+    # the ITEM level (flow_a), so they've cumulated into these item scores — we
+    # do NOT re-penalise the section here.
     rated = [r["score"] for r in flow_a_results
              if r.get("rating") in ("Good", "Average", "Bad") and r.get("score")]
     learning_base = round(sum(rated) / len(rated), 2) if rated else 0.0
-    learning_pen = penalty_for(
-        *[t for r in lesson_rows for t in (r.get("understanding_details", ""),
-                                           r.get("examples_practice_details", ""),
-                                           r.get("engagement_details", ""))],
-        has_reported_error=bool(error_reports),
-    ) if learning_base else 0.0
-    learning_score = round(max(1.0, learning_base - learning_pen), 1) if learning_base else 0.0
+    learning_pen = 0.0
+    learning_score = round(learning_base, 1) if learning_base else 0.0
 
     # ── Practice: average of option scores, severity-scaled penalty
     practice_base = _avg([s["practice_score"] for s in section_scores])
@@ -148,9 +145,12 @@ def run_flow_b(
     eff_weights = {k: round(_WEIGHTS[k] / tot_w * 100) for k in active}
     weighted = sum(components[k] * _WEIGHTS[k] for k in active) / tot_w
 
-    # Lesson-wide penalty: errors / negative feedback in additional suggestions.
-    lesson_pen = penalty_for(*[r.get("additional_suggestions", "") for r in teachers])
-    weighted -= lesson_pen
+    # NO separate lesson-wide penalty — penalties live at the item/section level
+    # and have already cumulated into the section scores above. The final is a
+    # weighted blend of the sections, so it always sits within their range (never
+    # bizarrely below every section). Errors flagged in "additional suggestions"
+    # are surfaced in the Errors Reported section, not applied as a hidden penalty.
+    lesson_pen = 0.0
     weighted = round(max(1.0, weighted), 1)
     final_rating = rag_from_score(weighted)
 

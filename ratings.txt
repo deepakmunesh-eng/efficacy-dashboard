@@ -94,6 +94,54 @@ Lesson rating: Distribute and rate as given below
 Learning is 40%
 Practice is 20%
 Exit is 5%
-Average of (Rate the overall lesson) by 3 teachers is 10%  
-Classroom rating is 25% 
-If there is no Classroom rating then distribute the weights and rate it. 
+Average of (Rate the overall lesson) by 3 teachers is 10%
+Classroom rating is 25%
+If there is no Classroom rating then distribute the weights and rate it.
+
+
+=====================================================================
+RATING & PENALTY LOGIC — AS IMPLEMENTED (updated 2026-07-10)
+=====================================================================
+
+DIMENSION SCORES (each learning item, 0-5, from the dropdown answers):
+  Understanding : "understand clearly" 5 | "need significant support" 3 | "not understand" 2
+  Examples      : "adequate…" 5 | "more…needed" 3
+  Engagement    : "quite engaging" 5 | "needs more fun/engagement" 3
+  Length        : "just the right length" 5 | "too long"/"too short" 3   (a SCORE, not a multiplier)
+  Language      : "clear and age-appropriate" 5 | "text heavy"/"difficult words" 3
+Practice/Exit options : "just right mix"/"fun and engaging" 5 | "too easy"/"too difficult"/"not engaging" 3
+Overall (teacher)     : the teacher's own 1-5 rating ("4 - Very Good" -> 4)
+
+ITEM RATING (learning):
+  = average of the 5 dimensions across the teachers who reviewed that item,
+    MINUS a penalty applied AT THE ITEM LEVEL so it reflects and cumulates up:
+      -1.5  genuine error  (a reported error on this item, OR an error word in the
+                            item's detail feedback: incorrect, inaccurate, wrong
+                            answer/solution, "an error in", typo, mistake, not correct)
+      -0.75 confusion/clarity/bug (confusing, unclear, misleading, not working,
+                            not popping, broken, cut off, overlap)
+      (the more severe of the two — not stacked; constructive suggestions = no penalty)
+  A wrong-lesson item ref (merged-cell typo) is dropped, not rated.
+
+SECTION RATINGS:
+  Learning = average of the item ratings (item penalties already cumulated in).
+  Practice = average of the practice option scores, minus the same severity-scaled
+             penalty if the practice "key observations" report an error.
+  Exit     = same as Practice, from the exit "key observations".
+  Overall  = average of the teachers' 1-5 rating.
+  Classroom= average of the classroom-review answers (25% weight when available).
+
+LESSON (final) RATING:
+  = weighted blend of the sections that have data:
+      Learning 40 | Practice 20 | Exit 5 | Overall 10 | Classroom 25
+    Missing sections (e.g. no classroom) are dropped and the rest are rescaled.
+  There is NO separate lesson-wide penalty — penalties live at the item/section
+  level and cumulate into the sections, so the final always sits within the
+  section range (never bizarrely below every section). Errors flagged in the
+  lesson-wide "additional suggestions" are shown in the Errors Reported section,
+  not applied as a hidden score penalty.
+
+BANDS: Good >= 4.0 | Average 2.5-3.9 | Bad < 2.5
+A lesson is PENDING until 3 teachers have reviewed it.
+ERRORS REPORTED are shown as their own tab in each lesson and as a
+program-level section on the home page.

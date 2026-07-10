@@ -5,8 +5,14 @@ import re
 
 from utils.helpers import normalize_name
 from processing.scoring import (
-    score_item_row, detect_divergences, rag_from_score,
+    score_item_row, detect_divergences, rag_from_score, penalty_for,
 )
+
+
+def _item_number(ref: str) -> str:
+    """Trailing item number of a ref, e.g. '…-002' / '…002_1' / '… CW 003' → '002'."""
+    m = re.findall(r"(\d{2,3})", (ref or ""))
+    return m[-1] if m else ""
 
 
 def _ref_core(ref: str) -> str:
@@ -107,7 +113,9 @@ def process_learning_item(
     item_ref: str,
     lesson_rows: list[dict],
     learnosity_content: dict,
+    item_errors: list[dict] | None = None,
 ) -> dict:
+    item_errors = item_errors or []
     teacher_rows = _extract_teacher_rows(lesson_rows, item_ref)
 
     # Each item is rated from whatever teacher reviews it has (1, 2, or 3+).
@@ -135,9 +143,19 @@ def process_learning_item(
     _dims = ["understanding", "engagement", "examples", "length", "language"]
     dim_avgs = {d: round(sum(s[d] for s in all_scores) / n_teachers, 1) for d in _dims}
 
-    # Item score = mean of the 5 dimensions (average of the teachers' item scores).
-    # No divergence penalty at item level (penalties are section-level, per spec).
-    final_score = round(sum(s["item_score"] for s in all_scores) / n_teachers, 1)
+    # Base = mean of the 5 dimensions (average of the teachers' item scores).
+    base_score = round(sum(s["item_score"] for s in all_scores) / n_teachers, 2)
+
+    # ── Item-level penalty (applied HERE so it reflects and cumulates up into the
+    # learning-section average). Severity-scaled: −1.5 for a genuine error
+    # (a reported error on this item, or an error word in this item's detail
+    # feedback), −0.75 for confusion/clarity wording. Not stacked.
+    detail_texts = [t for r in teacher_rows
+                    for t in (r.get("understanding_details", ""),
+                              r.get("examples_practice_details", ""),
+                              r.get("engagement_details", ""))]
+    penalty = penalty_for(*detail_texts, has_reported_error=bool(item_errors))
+    final_score = round(max(1.0, base_score - penalty), 1)
     rating = rag_from_score(final_score)
 
     # Divergence is detected for INFO only (shown as "teachers differ"), no penalty.
@@ -153,6 +171,9 @@ def process_learning_item(
     score_breakdown = {
         "teacher_count":       n_teachers,
         "dimension_averages":  dim_avgs,
+        "base_score":          base_score,
+        "penalty":             penalty,
+        "reported_errors":     len(item_errors),
         "final_score":         final_score,
         "rating":              rating,
         "diverging_dimensions": [d["dimension"] for d in divergences],
@@ -160,12 +181,16 @@ def process_learning_item(
 
     # Concise, accurate rationale (mean of the 5 dimensions; matches shown score).
     rationale = (
-        f"{rating} — {final_score:.1f}/5, the average of 5 dimensions across "
+        f"{rating} — {final_score:.1f}/5. Average of 5 dimensions across "
         f"{n_teachers} teacher(s): understanding {dim_avgs['understanding']:.1f}, "
         f"engagement {dim_avgs['engagement']:.1f}, examples {dim_avgs['examples']:.1f}, "
-        f"length {dim_avgs['length']:.1f}, language {dim_avgs['language']:.1f}. "
-        f"Bands: Good ≥4.0, Average 2.5–3.9, Bad <2.5."
+        f"length {dim_avgs['length']:.1f}, language {dim_avgs['language']:.1f}"
+        + (f" = {base_score:.1f}" if penalty else "") + "."
     )
+    if penalty:
+        kind = "genuine error" if penalty >= 1.5 else "confusion / clarity issue"
+        rationale += f" −{penalty:g} penalty ({kind})."
+    rationale += " Bands: Good ≥4.0, Average 2.5–3.9, Bad <2.5."
 
     # AI expert review placeholder — populated when Learnosity content becomes available
     learnosity_note = learnosity_content.get("note", "")
@@ -204,10 +229,17 @@ def run_flow_a(
     activity_ref: str,
     lesson_rows: list[dict],
     learnosity_content: dict,
+    error_reports: list[dict] | None = None,
 ) -> list[dict]:
     """Run Flow A for all learning items in a lesson."""
+    error_reports = error_reports or []
     meta = next((r for r in lesson_rows if r.get("activity_ref")), lesson_rows[0] if lesson_rows else {})
     grade, chapter, lesson = meta.get("grade",""), meta.get("chapter",""), meta.get("lesson","")
+
+    # Index reported errors by item number so each item is penalised individually.
+    errors_by_num: dict[str, list[dict]] = {}
+    for e in error_reports:
+        errors_by_num.setdefault(_item_number(e.get("item_ref", "")), []).append(e)
 
     seen: set[str] = set()
     item_refs: list[str] = []
@@ -220,6 +252,9 @@ def run_flow_a(
     item_refs = _filter_stray_items(item_refs)
 
     return [
-        process_learning_item(activity_ref, grade, chapter, lesson, ref, lesson_rows, learnosity_content)
+        process_learning_item(
+            activity_ref, grade, chapter, lesson, ref, lesson_rows, learnosity_content,
+            item_errors=errors_by_num.get(_item_number(ref), []),
+        )
         for ref in item_refs
     ]

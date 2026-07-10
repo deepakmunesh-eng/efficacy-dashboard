@@ -1,10 +1,54 @@
 """Flow A — Learning Item Feedback (Spec §7). Rule-based, no external API."""
 from __future__ import annotations
 
+import re
+
 from utils.helpers import normalize_name
 from processing.scoring import (
     score_item_row, detect_divergences, rag_from_score,
 )
+
+
+def _ref_core(ref: str) -> str:
+    """Normalised lesson-name core of a ref (alnum, lowercase, version tail cut).
+    'US-G6-Find-...-Numbers-V3-1.W04' and its item '...-Numbers-V3-1-004' both
+    reduce to 'usg6find...numbers'."""
+    s = re.sub(r"[^a-z0-9]", "", (ref or "").lower())
+    m = re.search(r"v3", s)          # cut at the version marker (V3-1 / V3.1 / …)
+    return s[:m.start()] if m else s
+
+
+def _core_similarity(a: str, b: str) -> float:
+    """Common-prefix ratio of two name-cores (0..1)."""
+    if not a or not b:
+        return 1.0
+    n = 0
+    for x, y in zip(a, b):
+        if x == y:
+            n += 1
+        else:
+            break
+    return n / max(len(a), len(b))
+
+
+def _filter_stray_items(item_refs: list[str]) -> list[str]:
+    """Drop an item whose name-core clearly differs from the lesson's OTHER
+    items — i.e. a wrong-lesson item ref that merged-cell forward-fill attached
+    here (e.g. a Prime-Factorization ref inside a Simplify-Expressions lesson).
+
+    Compares items against each other (not the activity ref, whose format often
+    differs), and only acts when there's a clear dominant name shared by ≥2
+    items — so normal lessons are never touched.
+    """
+    if len(item_refs) < 3:
+        return item_refs
+    cores = [_ref_core(r) for r in item_refs]
+    from collections import Counter
+    dom, dom_n = Counter(c for c in cores if c).most_common(1)[0]
+    if dom_n < 2:
+        return item_refs  # no clear majority → don't risk dropping anything
+    return [r for r, c in zip(item_refs, cores)
+            if _core_similarity(c, dom) >= 0.5]
 
 
 def _extract_teacher_rows(lesson_rows: list[dict], item_ref: str) -> list[dict]:
@@ -172,6 +216,8 @@ def run_flow_a(
         if ref and ref not in seen:
             seen.add(ref)
             item_refs.append(ref)
+
+    item_refs = _filter_stray_items(item_refs)
 
     return [
         process_learning_item(activity_ref, grade, chapter, lesson, ref, lesson_rows, learnosity_content)

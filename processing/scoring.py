@@ -48,44 +48,60 @@ _PRACTICE_OPTIONS = [
     ("not engaging",       3.0),
 ]
 
-# ── Severity-scaled penalties (per user decision 2026-07-09) ───────────────────
-# HARD (−1.5): a genuine content error — incorrect answer/image/solution, or a
-#   reported error. NOTE: we deliberately do NOT match bare "error"/"wrong" —
-#   teachers suggest adding "Find the error" questions (a suggestion) and write
-#   "nothing wrong" (positive); we match specific phrases instead.
-# SOFT (−0.75): confusion / clarity / visual bug — a real but softer issue.
-# Constructive suggestions with none of these words carry no penalty.
-_HARD_PENALTY = 1.5
-_SOFT_PENALTY = 0.75
+# ── Severity-scaled error penalties (per user decision 2026-07-10) ─────────────
+# Detected from ANY free-response box (item details, practice/exit observations,
+# additional suggestions) AND the Errors Reported tab. Penalty scales with
+# severity: SEVERE −1.5, MODERATE −1.0, MINOR −0.5. Take the most severe present.
+# NOTE: we deliberately do NOT match bare "error"/"wrong" — teachers suggest
+# adding "Find the error" questions (a suggestion) and write "nothing wrong".
+_SEVERE_PENALTY   = 1.5
+_MODERATE_PENALTY = 1.0
+_MINOR_PENALTY    = 0.5
+# Back-compat alias (flow_b imports _HARD_PENALTY for a display comparison).
+_HARD_PENALTY = _SEVERE_PENALTY
 
-_HARD_ERROR_SIGNALS = [
+_SEVERE_SIGNALS = [   # genuine content errors
     "incorrect", "inaccurate",
     "wrong answer", "wrong solution", "wrong option", "answer is wrong",
     "error in", "an error", "errors in", "there is error", "has an error",
     "not correct", "typo", "mistake",
 ]
-_SOFT_NEGATIVE_SIGNALS = [
-    "confusion", "confusing", "confuse",
-    "unclear", "not clear", "misleading",
-    "not working", "doesn't work", "does not work", "not popping",
-    "broken", "not visible", "cut off", "cut-off", "overlap",
+_MODERATE_SIGNALS = [  # real defects / bugs / mismatches
+    "misleading", "not working", "doesn't work", "does not work", "not popping",
+    "broken", "inconsistent", "does not match", "doesn't match", "not aligned",
+    "not visible", "cut off", "cut-off", "overlap", "overlapping",
+]
+_MINOR_SIGNALS = [     # confusion / clarity
+    "confusion", "confusing", "confuse", "unclear", "not clear",
+    "hard to read", "hard to understand", "difficult to read", "difficult to understand",
 ]
 
 
-def penalty_for(*texts: str, has_reported_error: bool = False) -> float:
-    """Severity-scaled penalty for the given text(s): −1.5 for a genuine error
-    (or a reported error), −0.75 for confusion/clarity/bug wording, else 0."""
+def classify_error(*texts: str) -> tuple[float, str]:
+    """(penalty, severity_label) for the most severe signal in the text(s),
+    or (0.0, '') if none. Severity: severe −1.5, moderate −1.0, minor −0.5."""
     blob = " ".join((t or "").lower() for t in texts)
-    if has_reported_error or any(s in blob for s in _HARD_ERROR_SIGNALS):
-        return _HARD_PENALTY
-    if any(s in blob for s in _SOFT_NEGATIVE_SIGNALS):
-        return _SOFT_PENALTY
-    return 0.0
+    if any(s in blob for s in _SEVERE_SIGNALS):
+        return _SEVERE_PENALTY, "severe"
+    if any(s in blob for s in _MODERATE_SIGNALS):
+        return _MODERATE_PENALTY, "moderate"
+    if any(s in blob for s in _MINOR_SIGNALS):
+        return _MINOR_PENALTY, "minor"
+    return 0.0, ""
+
+
+def penalty_for(*texts: str, has_reported_error: bool = False) -> float:
+    """Severity-scaled penalty for the text(s). A reported error with no matching
+    keyword still counts as at least MODERATE (it is a flagged defect)."""
+    pen, _ = classify_error(*texts)
+    if pen == 0.0 and has_reported_error:
+        pen = _MODERATE_PENALTY
+    return pen
 
 
 def has_negative_feedback(*texts: str) -> bool:
-    """Backward-compatible boolean: any hard or soft signal present."""
-    return penalty_for(*texts) > 0
+    """Backward-compatible boolean: any error signal present."""
+    return classify_error(*texts)[0] > 0
 
 # Classroom coded answers (q1–q5, q7–q9) → 0–5 score. q11 is a 1–5 number.
 _CLASSROOM_CODE_SCORES = {

@@ -381,34 +381,76 @@ def render_master_view(all_results: dict, on_select_lesson) -> None:
         _render_lesson_list(df, nav_grade, nav_chapter, on_select_lesson)
 
 
+_SEV_COLOR = {"severe": "#E84C3D", "moderate": "#F59E0B", "minor": "#EAB308"}
+
+
 def _render_all_errors(all_results: dict) -> None:
-    """Program-level view of every error reported across all lessons."""
-    rows = []
-    for ref, res in all_results.items():
-        for e in (res.get("error_reports") or []):
-            rows.append({
-                "Grade":    (res.get("grade") or "").strip(),
-                "Lesson":   (res.get("lesson") or ref).strip(),
-                "Item":     (e.get("item_ref") or "").strip(),
-                "Error Type": (e.get("error_type") or "").strip(),
-                "Details":  (e.get("error_details") or "").strip(),
-                "Reviewer": (e.get("reviewer_name") or "").strip(),
-            })
-    n = len(rows)
-    lessons_affected = len({(r["Lesson"]) for r in rows})
+    """Program-level Errors Reported tracker — grouped Grade → Chapter, with a
+    'Fixed' checkbox per error that persists so teams can track resolution."""
+    from collections import defaultdict
+    from utils.cache import get_fixed_errors, set_error_fixed
+
+    errors = []
+    for res in all_results.values():
+        errors.extend(res.get("detected_errors") or [])
+    fixed = get_fixed_errors()
+    total = len(errors)
+    open_n = sum(1 for e in errors if e["id"] not in fixed)
+
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-    with st.expander(f"🚩 Errors Reported — {n} across {lessons_affected} lesson(s)", expanded=False):
-        if not rows:
-            st.success("No errors reported. ✅")
+    with st.expander(f"🚩 Errors Reported — {open_n} open / {total} total", expanded=False):
+        if not errors:
+            st.success("No errors reported across any lesson. ✅")
             return
-        df = pd.DataFrame(rows).sort_values(["Grade", "Lesson"])
-        st.dataframe(df, use_container_width=True, hide_index=True)
-        st.download_button(
-            "⬇ Download errors (CSV)",
-            df.to_csv(index=False).encode("utf-8"),
-            file_name="errors_reported.csv",
-            mime="text/csv",
+
+        c1, c2 = st.columns([3, 2])
+        show_fixed = c1.checkbox("Show fixed errors", value=False, key="err_show_fixed")
+        c2.download_button(
+            "⬇ Download all (CSV)",
+            pd.DataFrame(errors).to_csv(index=False).encode("utf-8"),
+            file_name="errors_reported.csv", mime="text/csv",
+            use_container_width=True,
         )
+
+        by_grade: dict = defaultdict(lambda: defaultdict(list))
+        for e in errors:
+            by_grade[e.get("grade") or "—"][e.get("chapter") or "—"].append(e)
+
+        for grade in sorted(by_grade, key=lambda g: (str(g))):
+            g_errs = [e for ch in by_grade[grade].values() for e in ch]
+            g_open = sum(1 for e in g_errs if e["id"] not in fixed)
+            with st.expander(f"Grade {grade} — {g_open} open / {len(g_errs)}"):
+                for chapter in sorted(by_grade[grade]):
+                    ch_errs = by_grade[grade][chapter]
+                    ch_open = sum(1 for e in ch_errs if e["id"] not in fixed)
+                    if ch_open == 0 and not show_fixed:
+                        continue
+                    st.markdown(f"**{chapter}**  ·  {ch_open} open")
+                    for e in ch_errs:
+                        is_fixed = e["id"] in fixed
+                        if is_fixed and not show_fixed:
+                            continue
+                        cc1, cc2 = st.columns([0.05, 0.95])
+                        checked = cc1.checkbox("Fixed", value=is_fixed,
+                                               key="fix_" + e["id"],
+                                               label_visibility="collapsed")
+                        sev = e.get("severity", "minor")
+                        col = _SEV_COLOR.get(sev, "#94A3B8")
+                        style = "text-decoration:line-through;opacity:0.5;" if is_fixed else ""
+                        item = (e.get("item_ref") or "")[-8:]
+                        cc2.markdown(
+                            f"<div style='{style}font-size:0.85rem'>"
+                            f"<span style='background:{col}22;color:{col};border:1px solid {col}55;"
+                            f"padding:0 6px;border-radius:10px;font-size:0.68rem;font-weight:700'>{sev}</span> "
+                            f"<b>{e.get('lesson','')}</b> · {item} "
+                            f"<span style='color:#5B6B82'>[{e.get('source','')}]</span><br>"
+                            f"{e.get('text','')[:220]} "
+                            f"<span style='color:#94A3B8;font-size:0.72rem'>— {e.get('reviewer','')}</span></div>",
+                            unsafe_allow_html=True,
+                        )
+                        if checked != is_fixed:
+                            set_error_fixed(e["id"], checked)
+                            st.rerun()
 
 
 # ── Helpers reused by pdf_export / app sidebar ────────────────────────────────

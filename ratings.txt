@@ -114,19 +114,23 @@ Overall (teacher)     : the teacher's own 1-5 rating ("4 - Very Good" -> 4)
 
 ITEM RATING (learning):
   = average of the 5 dimensions across the teachers who reviewed that item,
-    MINUS a penalty applied AT THE ITEM LEVEL so it reflects and cumulates up:
-      -1.5  genuine error  (a reported error on this item, OR an error word in the
-                            item's detail feedback: incorrect, inaccurate, wrong
-                            answer/solution, "an error in", typo, mistake, not correct)
-      -0.75 confusion/clarity/bug (confusing, unclear, misleading, not working,
-                            not popping, broken, cut off, overlap)
-      (the more severe of the two — not stacked; constructive suggestions = no penalty)
+    MINUS a SEVERITY-SCALED penalty applied AT THE ITEM LEVEL so it reflects and
+    cumulates up into the section average. The error can come from ANY free-
+    response box on this item (understanding / examples / engagement notes) OR
+    from a reported error on this item; severity drives the size:
+      -1.5  SEVERE   : incorrect answer/solution/image, wrong answer/solution,
+                       "an error in", inaccurate, not correct, typo, mistake
+      -1.0  MODERATE : misleading, not working / broken / bug, inconsistent,
+                       does not match, not visible, cut off, overlap
+      -0.5  MINOR    : confusing, unclear, hard to read/understand
+      (most severe present wins — not stacked; constructive suggestions = no penalty)
   A wrong-lesson item ref (merged-cell typo) is dropped, not rated.
 
-SECTION RATINGS:
-  Learning = average of the item ratings (item penalties already cumulated in).
-  Practice = average of the practice option scores, minus the same severity-scaled
-             penalty if the practice "key observations" report an error.
+SECTION RATINGS (penalties are severity-scaled -0.5/-1.0/-1.5, same tiers as above):
+  Learning = average of the item ratings (item penalties already cumulated in),
+             minus a penalty if the lesson-wide "additional suggestions" flag an error.
+  Practice = average of the practice option scores, minus a penalty if the
+             practice "key observations" report an error.
   Exit     = same as Practice, from the exit "key observations".
   Overall  = average of the teachers' 1-5 rating.
   Classroom= average of the classroom-review answers (25% weight when available).

@@ -133,6 +133,24 @@ def save_all_results(results: dict) -> None:
     _save(_RESULTS_FILE, results)
 
 
+# ── Errors Reported: "mark as fixed" tracker ──────────────────────────────────
+_FIXED_ERRORS_FILE = CACHE_DIR / "fixed_errors.json"
+
+
+def get_fixed_errors() -> dict:
+    """Map of error_id → timestamp for errors marked fixed."""
+    return _load(_FIXED_ERRORS_FILE)
+
+
+def set_error_fixed(error_id: str, fixed: bool) -> None:
+    d = _load(_FIXED_ERRORS_FILE)
+    if fixed:
+        d[error_id] = time.time()
+    else:
+        d.pop(error_id, None)
+    _save(_FIXED_ERRORS_FILE, d)
+
+
 # ── Curriculum review actions ─────────────────────────────────────────────────
 _CURRICULUM_FILE = CACHE_DIR / "curriculum_reviews.json"
 

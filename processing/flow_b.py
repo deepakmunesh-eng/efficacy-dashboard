@@ -108,14 +108,15 @@ def run_flow_b(
     teachers = _section_teacher_rows(lesson_rows)
     section_scores = [score_section_row(r) for r in teachers]
 
-    # ── Learning: average of the item ratings. Penalties are already applied at
-    # the ITEM level (flow_a), so they've cumulated into these item scores — we
-    # do NOT re-penalise the section here.
+    # ── Learning: average of the item ratings (item penalties already cumulated
+    # in from flow_a). A lesson-wide "additional suggestions" error is a free
+    # response too, so it applies here as a section-level penalty (blends at the
+    # learning weight — never tanks the final below the sections).
     rated = [r["score"] for r in flow_a_results
              if r.get("rating") in ("Good", "Average", "Bad") and r.get("score")]
     learning_base = round(sum(rated) / len(rated), 2) if rated else 0.0
-    learning_pen = 0.0
-    learning_score = round(learning_base, 1) if learning_base else 0.0
+    learning_pen = penalty_for(*[r.get("additional_suggestions", "") for r in teachers]) if learning_base else 0.0
+    learning_score = round(max(1.0, learning_base - learning_pen), 1) if learning_base else 0.0
 
     # ── Practice: average of option scores, severity-scaled penalty
     practice_base = _avg([s["practice_score"] for s in section_scores])
@@ -161,7 +162,8 @@ def run_flow_b(
         r = rag_from_score(score)
         txt = f"{r} — average {label} score {score:.1f}/5 from {len(teachers)} teacher(s)."
         if pen:
-            kind = "genuine error" if pen >= _HARD_PENALTY_REF else "confusion / clarity issue"
+            kind = ("severe error" if pen >= 1.5
+                    else "moderate defect" if pen >= 1.0 else "minor / clarity issue")
             txt += f" (−{pen:g} penalty for {kind}.)"
         txt += " Bands: Good ≥4.0, Average 2.5–3.9, Bad <2.5."
         return _section_dict(score, r, txt, bool(pen))

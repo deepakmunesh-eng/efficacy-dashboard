@@ -147,14 +147,18 @@ def process_learning_item(
     base_score = round(sum(s["item_score"] for s in all_scores) / n_teachers, 2)
 
     # ── Item-level penalty (applied HERE so it reflects and cumulates up into the
-    # learning-section average). Severity-scaled: −1.5 for a genuine error
-    # (a reported error on this item, or an error word in this item's detail
-    # feedback), −0.75 for confusion/clarity wording. Not stacked.
+    # learning-section average). Severity-scaled by scoring.penalty_for:
+    #   severe −1.5, moderate −1.0, minor −0.5. Detected from ANY of this item's
+    # free-response boxes (understanding/examples/engagement details) AND any
+    # reported error on this item (its type/details drive the severity).
     detail_texts = [t for r in teacher_rows
                     for t in (r.get("understanding_details", ""),
                               r.get("examples_practice_details", ""),
                               r.get("engagement_details", ""))]
-    penalty = penalty_for(*detail_texts, has_reported_error=bool(item_errors))
+    reported_texts = [f"{e.get('error_type','')} {e.get('error_details','')}"
+                      for e in item_errors]
+    penalty = penalty_for(*(detail_texts + reported_texts),
+                          has_reported_error=bool(item_errors))
     final_score = round(max(1.0, base_score - penalty), 1)
     rating = rag_from_score(final_score)
 
@@ -188,7 +192,8 @@ def process_learning_item(
         + (f" = {base_score:.1f}" if penalty else "") + "."
     )
     if penalty:
-        kind = "genuine error" if penalty >= 1.5 else "confusion / clarity issue"
+        kind = ("severe error" if penalty >= 1.5
+                else "moderate defect" if penalty >= 1.0 else "minor / clarity issue")
         rationale += f" −{penalty:g} penalty ({kind})."
     rationale += " Bands: Good ≥4.0, Average 2.5–3.9, Bad <2.5."
 

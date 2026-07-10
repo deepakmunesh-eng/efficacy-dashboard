@@ -70,7 +70,7 @@ def _check_credentials() -> list[str]:
 # 5 direct dimension scores (Length is a score, not a multiplier), section
 # averages, weights Learning40/Practice20/Exit5/Overall10/Classroom25 (rescaled
 # if a section is missing), targeted −0.2 penalties, no divergence penalty.
-_LOGIC_VERSION = "v10"
+_LOGIC_VERSION = "v11"
 
 
 # ── Core pipeline ─────────────────────────────────────────────────────────────
@@ -78,6 +78,7 @@ def process_all_lessons(force: bool = False) -> dict:
     """Full ingestion + processing pipeline. Returns dict of all results."""
     from utils.helpers import normalize_name
     from processing.flow_b import _BACKFILL_FIELDS
+    from processing.errors import collect_lesson_errors
     from data.learnosity_client import _fetch_from_supabase, _fallback
     from processing.ai_expert_review import generate_ai_expert_review
     from data.ai_review_reader import fetch_ai_reviews as _fetch_ai_doc_reviews
@@ -215,6 +216,12 @@ def process_all_lessons(force: bool = False) -> dict:
                 "flow_a_results":   [],
                 "actionable_recommendations": [],
                 "error_reports":    lesson_errors,
+                "detected_errors":  collect_lesson_errors(
+                    activity_ref,
+                    lesson_rows[0].get("grade", "") if lesson_rows else "",
+                    lesson_rows[0].get("chapter", "") if lesson_rows else "",
+                    lesson_rows[0].get("lesson", "") if lesson_rows else "",
+                    lesson_rows, lesson_errors),
             }
             continue
 
@@ -256,6 +263,10 @@ def process_all_lessons(force: bool = False) -> dict:
         flow_b_result["status"]        = "Complete"
         flow_b_result["review_date"]   = lesson_rows[0].get("review_date", "")
         flow_b_result["error_reports"] = lesson_errors
+        flow_b_result["detected_errors"] = collect_lesson_errors(
+            activity_ref, flow_b_result.get("grade", ""),
+            flow_b_result.get("chapter", ""), flow_b_result.get("lesson", ""),
+            lesson_rows, lesson_errors)
 
         # Attach per-teacher raw data
         teachers_data: list = []

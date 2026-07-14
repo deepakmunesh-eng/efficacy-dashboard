@@ -5,7 +5,7 @@ import re
 
 from utils.helpers import normalize_name
 from processing.scoring import (
-    score_item_row, detect_divergences, rag_from_score, penalty_for,
+    score_item_row, detect_divergences, rag_from_score,
 )
 
 
@@ -143,23 +143,12 @@ def process_learning_item(
     _dims = ["understanding", "engagement", "examples", "length", "language"]
     dim_avgs = {d: round(sum(s[d] for s in all_scores) / n_teachers, 1) for d in _dims}
 
-    # Base = mean of the 5 dimensions (average of the teachers' item scores).
+    # Item score = mean of the 5 dimensions (average of the teachers' item scores).
+    # Errors are NOT scored into health (new spec) — they are surfaced in the
+    # separate Errors Reported tracker only. So there is no penalty here.
     base_score = round(sum(s["item_score"] for s in all_scores) / n_teachers, 2)
-
-    # ── Item-level penalty (applied HERE so it reflects and cumulates up into the
-    # learning-section average). Severity-scaled by scoring.penalty_for:
-    #   severe −1.5, moderate −1.0, minor −0.5. Detected from ANY of this item's
-    # free-response boxes (understanding/examples/engagement details) AND any
-    # reported error on this item (its type/details drive the severity).
-    detail_texts = [t for r in teacher_rows
-                    for t in (r.get("understanding_details", ""),
-                              r.get("examples_practice_details", ""),
-                              r.get("engagement_details", ""))]
-    reported_texts = [f"{e.get('error_type','')} {e.get('error_details','')}"
-                      for e in item_errors]
-    penalty = penalty_for(*(detail_texts + reported_texts),
-                          has_reported_error=bool(item_errors))
-    final_score = round(max(1.0, base_score - penalty), 1)
+    penalty = 0.0
+    final_score = round(base_score, 1)
     rating = rag_from_score(final_score)
 
     # Divergence is detected for INFO only (shown as "teachers differ"), no penalty.
@@ -188,13 +177,8 @@ def process_learning_item(
         f"{rating} — {final_score:.1f}/5. Average of 5 dimensions across "
         f"{n_teachers} teacher(s): understanding {dim_avgs['understanding']:.1f}, "
         f"engagement {dim_avgs['engagement']:.1f}, examples {dim_avgs['examples']:.1f}, "
-        f"length {dim_avgs['length']:.1f}, language {dim_avgs['language']:.1f}"
-        + (f" = {base_score:.1f}" if penalty else "") + "."
+        f"length {dim_avgs['length']:.1f}, language {dim_avgs['language']:.1f}."
     )
-    if penalty:
-        kind = ("severe error" if penalty >= 1.5
-                else "moderate defect" if penalty >= 1.0 else "minor / clarity issue")
-        rationale += f" −{penalty:g} penalty ({kind})."
     rationale += " Bands: Good ≥4.0, Average 2.5–3.9, Bad <2.5."
 
     # AI expert review placeholder — populated when Learnosity content becomes available

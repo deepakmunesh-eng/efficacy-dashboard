@@ -103,6 +103,7 @@ def has_negative_feedback(*texts: str) -> bool:
     """Backward-compatible boolean: any error signal present."""
     return classify_error(*texts)[0] > 0
 
+
 # Classroom coded answers (q1–q5, q7–q9) → 0–5 score. q11 is a 1–5 number.
 _CLASSROOM_CODE_SCORES = {
     # q1 — students understood
@@ -134,12 +135,6 @@ def _match_score(text: str, table: list) -> float | None:
         if needle in t:
             return score
     return 3.0  # non-blank but unrecognised → neutral
-
-
-def has_negative_feedback(*texts: str) -> bool:
-    """True if any error / negative-feedback signal appears in the given text(s)."""
-    blob = " ".join((t or "").lower() for t in texts)
-    return any(sig in blob for sig in _NEGATIVE_SIGNALS)
 
 
 def _multi_select_score(text: str) -> float | None:

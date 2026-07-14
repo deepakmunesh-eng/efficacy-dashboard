@@ -390,8 +390,11 @@ def _build_prompt(
         if reference else ""
     )
 
-    return f"""You are a Cuemath curriculum reviewer. Write your review of this K-8 math lesson in the SAME warm, human, plain-language voice our teachers use — like a helpful colleague, never a formal report. Be specific and concrete: name the item/screen and say what you'd actually change.
+    return f"""You are a Cuemath curriculum reviewer. Review the LEARNING ITEMS of this K-8 math lesson exactly the way our reference document does — the same five checks, the same warm, plain, specific voice (a helpful colleague, never a formal report). Name the item/screen and say what you'd actually change.
 {ref_block}
+## The five checks (score EACH one)
+For every learning item we look at: **Flow**, **Visuals & simulations**, **Text load**, **Response boxes**, and **Accuracy** (guided examples & correctness). For each check decide "Working well" or "Suggested change" and give a short, concrete comment in the reference voice.
+
 ## Lesson
 Grade {lesson_meta.get('grade','')} | {lesson_meta.get('chapter','')} | {lesson_meta.get('lesson','')}
 Activity ref: {lesson_meta.get('activity_ref','')}
@@ -400,28 +403,38 @@ Activity ref: {lesson_meta.get('activity_ref','')}
 {items_text}
 
 ## Teacher Field Scores (3 teachers, rule-based)
-Learning: {lr.get('score',0):.1f}/5 ({lr.get('rating','—')}) | Practice: {pr.get('score',0):.1f}/5 ({pr.get('rating','—')}) | Exit Ticket: {et.get('score',0):.1f}/5 ({et.get('rating','—')})
+Learning: {lr.get('score',0):.1f}/5 ({lr.get('rating','—')}) | Practice: {pr.get('score',0):.1f}/5 ({pr.get('rating','—')}) | Mini-Quiz: {et.get('score',0):.1f}/5 ({et.get('rating','—')})
 
 ## Teacher Feedback — use EVERY point below
 This teacher feedback is your primary evidence. Use ALL of it — every teacher, every observation. Weave the recurring themes together and keep the specific, concrete points. Do not drop anyone's input.
 {teacher_text}
 
 ## Errors Reported by Teachers (concrete, item-specific defects — treat as must-fix)
-These are precise problems teachers flagged (wrong answers, inconsistent boxes, etc.). Reflect the important ones in "concerns"/"Needs curriculum intervention".
+These are precise problems teachers flagged (wrong answers, inconsistent boxes, etc.). Reflect the important ones in the relevant check and in "concerns".
 {errors_text}
 
 ## Reference expert-review examples (for tone)
 {doc_samples}
 
 ---
-Now write the review, using the five-check lens where it fits (Flow, Visuals & simulations, Text load, Response boxes, Guided example & accuracy). Put what's genuinely working into "strengths"; put what needs a fix into "concerns" (these are shown to the team as "Needs curriculum intervention") — each phrased the way a teacher would say it: plain, kind, and specific. Ground everything in the teacher feedback above; where Learnosity item content isn't available, lean on the teacher feedback rather than inventing details.
+Now write the review of the LEARNING items across the five checks. Ground everything in the evidence above; where Learnosity item content isn't available, lean on the teacher feedback rather than inventing details.
+
+Also give a single **ai_score from 1.0 to 5.0** for the learning items overall — this is the AI component of the lesson's health (weighted 20%). Anchor it: 5.0 = all five checks working well with no real issues; ~4.0 = mostly working, one or two minor suggested changes; ~3.0 = several suggested changes or one genuine accuracy/flow problem; ≤2.0 = multiple genuine problems (wrong content, broken flow, heavy text). Be consistent with your per-check verdicts.
 
 Respond ONLY with a valid JSON object — no markdown fences, no extra text:
 {{
+  "ai_score": 4.2,
   "final_rating": "Good" or "Average" or "Bad",
-  "overall_summary": "2-3 sentence plain-language take (used internally, not shown)",
-  "strengths": ["what's genuinely working, in a teacher's voice — specific, not generic", "..."],
-  "concerns": ["what needs curriculum intervention, phrased like a teacher's suggested change — name the item/screen and the concrete fix", "..."],
+  "checks": {{
+    "flow":           {{"status": "Working well" or "Suggested change", "comment": "..."}},
+    "visuals":        {{"status": "Working well" or "Suggested change", "comment": "..."}},
+    "text_load":      {{"status": "Working well" or "Suggested change", "comment": "..."}},
+    "response_boxes": {{"status": "Working well" or "Suggested change", "comment": "..."}},
+    "accuracy":       {{"status": "Working well" or "Suggested change", "comment": "..."}}
+  }},
+  "overall_summary": "2-3 sentence plain-language take",
+  "strengths": ["what's genuinely working, in a teacher's voice — specific", "..."],
+  "concerns": ["what needs a fix, phrased like a teacher's suggested change — name the item/screen and the concrete fix", "..."],
   "recommendations": ["specific fix 1", "specific fix 2", "specific fix 3"],
   "confidence": "High" or "Medium" or "Low",
   "confidence_note": "one line on why (e.g. based on teacher feedback only, Learnosity content not yet available)"
@@ -484,6 +497,23 @@ def _load_cache() -> dict:
     return {}
 
 
+def get_cached_ai_score(activity_ref: str) -> float | None:
+    """Return the AI health score (1-5) from any cached review for this lesson,
+    or None if no AI review has been generated yet. Used so a refresh can fold
+    the AI component (20%) into health without re-running the LLM."""
+    if not activity_ref:
+        return None
+    cache = _load_cache()
+    for key, rev in cache.items():
+        if key.startswith(f"{activity_ref}|") and isinstance(rev, dict):
+            if rev.get("error"):
+                continue
+            score = rev.get("ai_score")
+            if score is not None:
+                return _normalise_ai_score(rev)
+    return None
+
+
 def _save_cache(cache: dict) -> None:
     try:
         _CACHE_FILE.write_text(
@@ -491,6 +521,27 @@ def _save_cache(cache: dict) -> None:
         )
     except Exception:
         pass
+
+
+def _normalise_ai_score(result: dict) -> float:
+    """Clamp/derive the AI health score (1.0-5.0) for a review result."""
+    raw = result.get("ai_score")
+    try:
+        val = float(raw)
+        if 1.0 <= val <= 5.0:
+            return round(val, 1)
+    except (TypeError, ValueError):
+        pass
+    # Fallback: derive from the five per-check verdicts.
+    checks = result.get("checks") or {}
+    if checks:
+        suggested = sum(
+            1 for c in checks.values()
+            if isinstance(c, dict) and "suggest" in (c.get("status", "").lower())
+        )
+        return round(max(1.0, 5.0 - 0.4 * suggested), 1)
+    # Last resort: map the coarse rating.
+    return {"Good": 4.5, "Average": 3.0, "Bad": 2.0}.get(result.get("final_rating", ""), 3.0)
 
 
 # ── Public entry ───────────────────────────────────────────────────────────────
@@ -561,6 +612,10 @@ def generate_ai_expert_review(
     if result.get("error"):
         print(f"[ai_expert_review] {activity_ref}: {result['error']}")
         return result
+
+    # Normalise the numeric AI score (1-5). If the model omitted it, derive it
+    # from the five per-check verdicts (each "Suggested change" costs 0.4 off 5).
+    result["ai_score"] = _normalise_ai_score(result)
 
     result["_generated_at"]     = time.time()
     result["_activity_ref"]     = activity_ref

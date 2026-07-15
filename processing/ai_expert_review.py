@@ -57,6 +57,11 @@ _reference_cache: "str | None" = None
 _GOLD_STANDARD_TXT = BASE_DIR / "gold-standard-items.txt"
 _gold_cache: "str | None" = None
 
+# Framework derived from the gold standard — the scoring rubric (6 dimensions +
+# Good/Average/Bad bands) the review applies to each learning item.
+_FRAMEWORK_MD = BASE_DIR / "data" / "learning_item_framework.md"
+_framework_cache: "str | None" = None
+
 
 def _load_gold_standard() -> str:
     global _gold_cache
@@ -69,6 +74,19 @@ def _load_gold_standard() -> str:
         print(f"[ai_expert_review] gold-standard load failed: {exc}")
         _gold_cache = ""
     return _gold_cache
+
+
+def _load_framework() -> str:
+    global _framework_cache
+    if _framework_cache is not None:
+        return _framework_cache
+    try:
+        _framework_cache = (_FRAMEWORK_MD.read_text(encoding="utf-8")
+                            if _FRAMEWORK_MD.exists() else "")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[ai_expert_review] framework load failed: {exc}")
+        _framework_cache = ""
+    return _framework_cache
 
 
 def _load_review_reference() -> str:
@@ -409,6 +427,18 @@ def _build_prompt(
         if reference else ""
     )
 
+    framework = _load_framework()
+    framework_block = (
+        "\n## Review framework — score each learning item on these (mirror this rubric)\n"
+        "This is our review framework, built from the gold standard. Apply its six "
+        "dimensions and its Good/Average/Bad bands. The five checks below map onto it "
+        "(Flow←flow/sequencing; Visuals←visuals & simulations; Text load←text & language; "
+        "Response boxes←response design; Accuracy←accuracy; plus guided discovery & "
+        "examples/non-examples run through all of them).\n\n"
+        f"{framework}\n"
+        if framework else ""
+    )
+
     gold = _load_gold_standard()
     gold_block = (
         "\n## Gold-standard learning items (the bar to compare against)\n"
@@ -421,7 +451,7 @@ def _build_prompt(
     )
 
     return f"""You are a Cuemath curriculum reviewer. Review the LEARNING ITEMS of this K-8 math lesson exactly the way our reference document does — the same five checks, the same warm, plain, specific voice (a helpful colleague, never a formal report). Name the item/screen and say what you'd actually change.
-{ref_block}{gold_block}
+{ref_block}{framework_block}{gold_block}
 ## The five checks (score EACH one)
 For every learning item we look at: **Flow**, **Visuals & simulations**, **Text load**, **Response boxes**, and **Accuracy** (guided examples & correctness). For each check decide "Working well" or "Suggested change" and give a short, concrete comment in the reference voice.
 

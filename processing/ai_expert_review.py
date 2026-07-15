@@ -289,8 +289,59 @@ def _is_learning_item(item: dict) -> bool:
     return "learning" in _item_type_tag(item).lower()
 
 
+def _as_text(x, cap: int) -> str:
+    """Strip HTML from a str, or compactly stringify a list/dict, then cap."""
+    if x is None:
+        return ""
+    if not isinstance(x, str):
+        try:
+            x = json.dumps(x, ensure_ascii=False)
+        except Exception:  # noqa: BLE001
+            x = str(x)
+    return _strip_html(x)[:cap]
+
+
+def _summarise_widget(q: dict) -> dict:
+    """Full content of one widget — enough to review flow, scaffolding, visuals,
+    text load, response design and accuracy. Nothing is dropped except raw HTML."""
+    qdata = q.get("data", {}) if isinstance(q, dict) else {}
+    if not isinstance(qdata, dict):
+        qdata = {}
+    meta = qdata.get("metadata") or {}
+    if not isinstance(meta, dict):
+        meta = {}
+
+    # Answer options: MCQ options[].label, else cloze possible_responses (grouped).
+    opts: list[str] = []
+    for o in (qdata.get("options") or []):
+        opts.append(_as_text(o.get("label") if isinstance(o, dict) else o, 160))
+    if not opts:
+        for grp in (qdata.get("possible_responses") or []):
+            if isinstance(grp, list):
+                opts.append("[" + " / ".join(_as_text(x, 60) for x in grp) + "]")
+            else:
+                opts.append(_as_text(grp, 160))
+
+    correct = (qdata.get("validation") or {}).get("valid_response") or {}
+    hints = meta.get("hints") or ([qdata.get("hint")] if qdata.get("hint") else [])
+    tips  = meta.get("teacher_tips") or []
+
+    return {
+        "type":          q.get("type", "") if isinstance(q, dict) else "",
+        "stimulus":      _as_text(qdata.get("stimulus"), 1500),      # instructions / context / <iframe> sims
+        "template":      _as_text(qdata.get("template"), 800),       # the question text with {{response}} blanks
+        "options":       [o for o in opts if o][:16],
+        "correct":       _as_text(correct.get("value"), 400),        # key — needed for the accuracy check
+        "hints":         [_as_text(h, 300) for h in hints if h][:5],
+        "teacher_tips":  [_as_text(t, 300) for t in tips if t][:5],
+        "sample_answer": _as_text(meta.get("sample_answer"), 400),
+    }
+
+
 def _summarise_item(item: dict) -> dict:
-    """Convert a raw Learnosity item into a compact dict for the Claude prompt."""
+    """Convert a raw Learnosity item into a full-content dict for the prompt —
+    EVERY widget, with question text, options, correct answers, hints, tips and
+    sample answers (only raw HTML is stripped)."""
     questions = item.get("questions") or []
     tags      = item.get("tags") or {}
     tag_flat  = tags if isinstance(tags, dict) else {}
@@ -307,27 +358,13 @@ def _summarise_item(item: dict) -> dict:
     else:
         section = "Learning"
 
-    questions_data = []
-    for q in questions[:5]:
-        qdata    = q.get("data", {}) if isinstance(q, dict) else {}
-        stimulus = _strip_html(qdata.get("stimulus", ""))[:300]
-        opts     = [_strip_html(o.get("label", "") if isinstance(o, dict) else str(o))[:80]
-                    for o in (qdata.get("options") or [])[:4]]
-        hint     = _strip_html(qdata.get("hint", ""))[:150]
-        questions_data.append({
-            "type":     q.get("type", "") if isinstance(q, dict) else "",
-            "stimulus": stimulus,
-            "options":  opts,
-            "hint":     hint,
-        })
-
     return {
         "reference":     item.get("reference", ""),
         "title":         item.get("title") or "",
         "section":       section,
         "item_type":     item_type,
         "question_count": len(questions),
-        "questions":     questions_data,
+        "questions":     [_summarise_widget(q) for q in questions],   # ALL widgets
     }
 
 
@@ -335,16 +372,27 @@ def _summarise_item(item: dict) -> dict:
 
 def _format_items_text(items: list[dict]) -> str:
     if not items:
-        return "(Item content not available — review based on teacher feedback only)"
+        return "(Item content not available.)"
     lines = []
     for item in items:
-        lines.append(f"\n### {item['reference']}  [{item['section']} | {item['item_type']}]")
-        for q in item.get("questions", []):
-            lines.append(f"  [{q['type']}] {q['stimulus']}")
+        lines.append(f"\n### Item {item['reference']}  [{item['section']} | {item['item_type']}]  "
+                     f"— {item['question_count']} widget(s), ALL shown below")
+        for i, q in enumerate(item.get("questions", []), 1):
+            lines.append(f"\n  ── Widget {i} [{q.get('type','')}] ──")
+            if q.get("stimulus"):
+                lines.append(f"    Stimulus / instruction: {q['stimulus']}")
+            if q.get("template"):
+                lines.append(f"    Question ( {{blank}} = response box ): {q['template']}")
             if q.get("options"):
-                lines.append("  Choices: " + " / ".join(q["options"]))
-            if q.get("hint"):
-                lines.append(f"  Hint: {q['hint']}")
+                lines.append("    Options: " + "  ;  ".join(q["options"]))
+            if q.get("correct"):
+                lines.append(f"    Correct answer(s): {q['correct']}")
+            for h in q.get("hints", []):
+                lines.append(f"    Hint: {h}")
+            for t in q.get("teacher_tips", []):
+                lines.append(f"    Teacher tip / Cue-Don't-Tell: {t}")
+            if q.get("sample_answer"):
+                lines.append(f"    Sample answer: {q['sample_answer']}")
     return "\n".join(lines)
 
 

@@ -79,6 +79,13 @@ DATA_GATEWAY_BASE_URL    = os.getenv("DATA_GATEWAY_BASE_URL", "")
 DATA_GATEWAY_TOKEN       = os.getenv("DATA_GATEWAY_TOKEN", "")
 LEARNOSITY_MS_DOMAIN_URL = os.getenv("LEARNOSITY_MS_DOMAIN_URL", "leap.cuemath.com")
 
+# ── AI review gating ──────────────────────────────────────────────────────────
+# The AI review of learning items (20% of health) stays BLANK with a placeholder
+# until we have Learnosity content access (the data-gateway IP allowlist). Flip
+# AI_REVIEW_ENABLED=1 in the environment once access is granted to let the app
+# generate + populate AI reviews (and fold the 20% component into health).
+AI_REVIEW_ENABLED = os.getenv("AI_REVIEW_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
+
 # ── Cuemath LLM gateway (AI Expert Review synthesis) ──────────────────────────
 # The Claude call routes through the LiteLLM proxy (fronting Bedrock), which
 # exposes an Anthropic-shaped /v1/messages endpoint with virtual-key auth —

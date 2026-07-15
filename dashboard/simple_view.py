@@ -198,8 +198,22 @@ def render_lesson(result: dict, nav, on_generate_ai) -> None:
 
 
 def _render_ai_review(result: dict, on_generate_ai) -> None:
+    from config.settings import AI_REVIEW_ENABLED
+
     ref = result.get("activity_ref", "")
     ai = st.session_state.get("ai_reviews", {}).get(ref)
+
+    # Blocked until Learnosity access — show a placeholder, don't generate.
+    if not AI_REVIEW_ENABLED and ai is None:
+        st.info(
+            "🔒 **AI review — awaiting Learnosity access.**\n\n"
+            "Once Learnosity content access is enabled, this will score the learning "
+            "items against the gold-standard reference across the five checks "
+            "(Flow, Visuals & simulations, Text load, Response boxes, Accuracy) and "
+            "contribute **20%** of the lesson's health. Until then its weight is "
+            "redistributed across the other components."
+        )
+        return
 
     if ai is None:
         st.caption("The AI review scores the learning items (Flow, Visuals & simulations, "

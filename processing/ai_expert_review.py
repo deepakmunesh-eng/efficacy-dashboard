@@ -51,6 +51,25 @@ _REVIEW_REF_MD   = BASE_DIR / "data" / "learning_review_reference.md"
 _REVIEW_REF_DOCX = BASE_DIR / "review files" / "Learning Item Review - Reference Document.docx"
 _reference_cache: "str | None" = None
 
+# Gold-standard items — exemplar learning items our designers consider the bar,
+# with the reasoning for why each is strong. The AI review judges the lesson's
+# learning items against this standard.
+_GOLD_STANDARD_TXT = BASE_DIR / "gold-standard-items.txt"
+_gold_cache: "str | None" = None
+
+
+def _load_gold_standard() -> str:
+    global _gold_cache
+    if _gold_cache is not None:
+        return _gold_cache
+    try:
+        _gold_cache = (_GOLD_STANDARD_TXT.read_text(encoding="utf-8")
+                       if _GOLD_STANDARD_TXT.exists() else "")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[ai_expert_review] gold-standard load failed: {exc}")
+        _gold_cache = ""
+    return _gold_cache
+
 
 def _load_review_reference() -> str:
     global _reference_cache
@@ -390,8 +409,19 @@ def _build_prompt(
         if reference else ""
     )
 
+    gold = _load_gold_standard()
+    gold_block = (
+        "\n## Gold-standard learning items (the bar to compare against)\n"
+        "Below are exemplar items our designers consider gold-standard, each with the "
+        "reasoning for why it is strong (document style, Learnosity rendering, and the "
+        "justification). Judge this lesson's learning items against THIS bar — where an "
+        "item falls short of what these examples do well, that is a 'Suggested change'.\n\n"
+        f"{gold}\n"
+        if gold else ""
+    )
+
     return f"""You are a Cuemath curriculum reviewer. Review the LEARNING ITEMS of this K-8 math lesson exactly the way our reference document does — the same five checks, the same warm, plain, specific voice (a helpful colleague, never a formal report). Name the item/screen and say what you'd actually change.
-{ref_block}
+{ref_block}{gold_block}
 ## The five checks (score EACH one)
 For every learning item we look at: **Flow**, **Visuals & simulations**, **Text load**, **Response boxes**, and **Accuracy** (guided examples & correctness). For each check decide "Working well" or "Suggested change" and give a short, concrete comment in the reference voice.
 

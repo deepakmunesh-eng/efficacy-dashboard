@@ -1,0 +1,1285 @@
+Tab 2
+1. Sample Gold Standard
+
+
+
+
+Pointers to keep in mind
+* Document Structure: The first part shows the documentation exactly how our designers write in a google doc. It consists of all the specifications such as hints, Cue Don’t Tell, Solutions and Acknowledgements with sample answers. Cue Don’t Tell is sometimes written as Teacher Tips. 
+   * I am not adding the first widget as it is the same for all Learning Items with Cloze with Text as the item format.
+* Learnosity Rendering: The second part is the learnosity section. This shows how it is rendered on Learnosity. I have not added the other specifications here. These sections appear in designated sections in learnosity and the process is just the same for all items. Wherever there is a simulation, I will give the JSON that is used in learnosity.
+* Justification: The third part is my commentary on why this is a good item.
+* Alternative ApproachThe fourth part is another approach which may not be the best one. However, the specifications would be repetitive and it is not provided.
+* Justification for why it is not the best.
+
+
+
+
+
+
+
+
+Example 1: Grade 3: Geometry: Identify What a Polygon Is
+
+
+Part  1: Document Style
+Item 2: Polygons and their Types 002
+Tags: USCC.G3; Mini Goals: GEOM001; Item Type: Learning
+
+
+[W01]
+[Instructor Stimulus: Concept Intro]
+
+
+Define Polygons
+	
+
+[W02]
+[DN]
+[Instructor Stimulus: Task]
+
+
+Here are some examples of open and closed shapes.
+  
+
+                                                                                    
+                      
+                   Open Shapes                                                                    Closed Shapes                                                           
+                                                       
+Open shapes start at one point and end at a different point.
+Closed shapes do not have different start and end points.
+	
+
+Select whether the shapes are open or closed.
+  
+
+
+
+[Open Shape*; Closed Shape]
+	  
+
+
+
+[Open Shape; Closed Shape*]
+	  
+
+[Open Shape; Closed Shape*]
+	
+
+Hints: 
+* Look at each shape carefully. Does it have any gaps or openings?
+* For example, think of a fence around your house. If the fence has a gap, you can walk through it (open). If the fence goes all around with no gaps, you stay inside (closed).
+Teacher Tips:
+* What do you notice about the endpoints of each shape? [some connect, some don’t]
+* Which shape doesn’t have endpoints? [closed shape]
+
+
+
+
+Acknowledgements: 
+Your turn to teach!
+Explain in your own words how the closed shapes are different from the open shapes that you have selected.
+
+
+Sample Answer: 
+Closed shapes are joined all the way around with no openings. Open shapes are not fully joined and have a gap.
+	
+
+
+
+[W03]
+[DN]
+[Instructor Stimulus: Instruction]
+
+
+Here are closed shapes that are made up of only straight lines.
+
+
+  
+
+
+
+
+
+Such closed shapes, made up of only straight lines, are called polygons.
+	
+
+Is a circle a polygon?
+
+
+  
+
+
+
+A circle is a [a closed*  an open] shape.
+
+
+It is made up of [only straight lines, only curved lines*, both straight and curved lines].
+
+
+So, a circle [is, is not*] a polygon.
+
+
+Hints:
+Hint 1: A polygon must be made of only straight lines.
+
+
+Teacher Tips:
+* What type of lines are polygons made of? [Only straight lines]
+* What kind of line is a circle made of? [Curved line]
+
+
+Acknowledgements: 
+Explain why a circle is not a polygon? 
+
+
+Sample Answer: 
+A circle is made up of a curved line; hence, it is not a polygon. 
+
+
+
+
+[W04]
+[DN]
+[Instructor Stimulus: Task]
+
+
+
+
+Is this shape a polygon?
+
+
+
+
+
+
+  
+
+
+
+
+
+This shape is [an open, a closed*] shape.
+It is made up of [only curved lines, both straight and curved lines*, only straight lines].
+
+
+So, it [is, is not*] a polygon.
+
+
+Hints: 
+Hint 1: For a shape to be a polygon, it needs to be closed AND made of only straight lines. Check both rules.
+Hint 2: Look at this shape - can you see both straight parts and curved parts?
+Teacher Tips:
+* Is this shape completely closed? [Yes]
+* Are all the lines straight? [No, some are curved]
+
+
+
+
+Acknowledgements: 
+Give one way of making this shape a polygon.
+
+
+Sample Answer: 
+We can make the curved lines straight to form a rectangle.
+
+
+[W05]
+[DN]
+[Instructor Stimulus: Task]
+
+
+
+
+Is this shape a polygon?
+
+
+  
+
+
+
+
+
+This shape is [an open, a closed*] shape.
+It is made up of [only curved lines, both straight and lines, only straight lines*].
+So, it [is*, is not] a polygon.
+
+
+Hint 1: Look at the sides of this shape. Are they all straight lines?
+Hint 2: Is the shape open? 
+
+
+Teacher Tips:
+* How many straight sides can you count? [5]
+* Is the shape completely closed? [Yes]
+
+
+
+
+Acknowledgements: 
+Give one example of a polygon having the same number of sides as the given polygon.
+
+
+Sample Answer: 
+
+
+  
+
+
+
+[W06]
+[Hotspot]
+[Instructor Stimulus: Task]
+
+
+Which of these is a polygon?
+
+
+  
+
+
+
+Hint 1: Look at the sides of the shapes. Are they all straight lines?
+Hint 2: Look at whether the shapes are open. 
+
+
+Teacher Tips:
+What is a polygon? 
+Which of these shapes is a polygon? 
+
+
+Acknowledgements: 
+
+
+Your turn to teach!
+ Explain to your teacher why you think that the remaining three shapes are not polygons. 
+
+
+Sample Answer: 
+The remaining shapes either have curved lines or are open figures. 
+	
+
+
+
+Part 2: Learnosity Rendering
+W02
+
+
+  
+
+
+
+  
+
+
+
+W03
+
+
+  
+
+
+
+W04
+
+
+  
+
+
+
+W05
+  
+
+
+
+W06
+
+
+  
+
+
+
+
+
+Part 3: Justification
+
+
+The objective of this item is to ensure that the learners understand what a polygon is. It is broken into smaller widgets in a step by step with guided discovery and helps the student arrive at what a polygon is and also what is not a polygon from multiple examples and non examples. 
+It begins with a prior knowledge of open and closed shapes first. Then it moves to only closed shapes and guides learners to categorise shapes that are made up of only straight lines, straight and curved lines and only curved lines. Then it defines what a polygon is and has built in CFUs to check if the student understands if a shape is a polygon or not with reasons. It ends with a final independent task to check which is a polygon. 
+
+
+Part 4: A not so good approach
+
+
+W02
+
+
+
+
+
+
+
+
+A closed shape that is made up of only straight lines is called a polygon.
+	
+
+
+
+Here is an example of a polygon.
+
+
+  
+
+
+
+
+
+
+
+The above shape is a polygon because it is a [closed*, open] shape and is made up of [only straight*, only curved, straight and curved] lines.
+
+
+
+
+[W02]
+
+
+  
+
+Part 5: Justification
+
+
+This is not a great approach because of the following reasons.
+1. It does not capture the prior knowledge of open and closed shapes and identification of straight and curved lines. Considering it is only grade 3 and students need time to develop geometric thinking, this scaffolding is needed.
+2. This item does not have any guided task to dissect examples and non examples of polygons. 
+
+
+
+
+Example 2: Grade 3: Number System: Identify the Place Value of a 4 Digit Number
+
+
+[W02]
+[FM]
+[Instructor Stimulus: Instruction]
+
+
+
+
+Place Value is the value of a digit at a given place.
+	
+
+Here is the number 2364.
+
+
+  
+
+
+
+
+
+
+
+Let’s see how we find the place value of each digit.
+The one’s digit is 4. So, its place value  is 4 ones or 4.
+The ten’s digit is 6. So, its place value is 6 tens or 60.
+The hundred’s digit is 3. So, its place value is 3 hundreds or [300]
+The thousand’s digit is 2. So, its place value is 2 thousands or [2000].
+
+
+Hint 1: Place value tells us how much a digit is worth based on where it sits in the number.
+Hint 2: For example, if 4 is in the tens place, it represents 4 tens, which is the same as 40.
+Teacher Tips:
+* What is 3 hundreds equal to? [300]
+* What is 2 thousands equal to? [2000]
+Solution: 
+Answers: 300, 2000
+For the number 2364:
+* 3 in hundreds place represents 3 hundreds, which equals 300
+* 2 in thousands place represents 2 thousands, which equals 2000
+Acknowledgement:
+What do 2 cubes represent in the number 2364?
+How do you find the place value of the digit 2 in 2364?
+
+
+Sample Answer:
+The two cubes show the number 2000.
+Place value equals the digit multiplied by the value of its place.
+As 2 is in the thousands place in 2364, its place value is 2 x 1000 which is 2000.
+
+
+
+
+[W03]
+[FM]
+[Instructor Stimulus: Task]
+
+
+Here is the model of a 4-digit number.
+
+
+  
+
+
+
+What number does the model show? [2222]
+
+
+What is the place value of the digit at the hundreds place? [200]
+What is the place value of the digit at the thousands place? [2000]
+
+
+Hint 1: Count the blocks in each group to determine the digit in each place.
+Hint 2: Each hundreds block represents 100, and each thousands block represents 1000.
+Teacher Tips:
+* How many thousand blocks do you see? [2]
+* How many hundred blocks do you see? [2]
+* What is 2 hundreds worth in total? [200]
+Solution:
+Answers: 2222, 200, 2000
+ From the model:
+* There are 2 thousands, 2 hundreds, 2 tens, 2 ones = 2222
+* Place value of digit in hundreds place: 2 hundreds = 200
+* Place value of digit in thousands place: 2 thousands = 2000
+
+
+
+
+
+
+[W04]
+[DN]
+[Instructor Stimulus: Task]
+
+
+Complete the table for the underlined digits
+
+
+
+
+Number
+	Place Name
+	Place Value
+	2381
+	[Hundreds, Thousands*, Tens, Ones]
+	[200, 2000*, 20, 2]
+	5463
+	[Hundreds, Thousands, Tens, Ones*]
+	[3*, 300, 30, 3000]
+	Hint 1: First, identify which place the underlined digit occupies by counting from right to left.
+Hint 2: Then, think about how much that digit is worth in its place.
+Teacher Tips:
+* In 2381, what place is the underlined 2 in? [Thousands place]
+* How much is 2 thousands worth? [2000]
+* In 5463, what place is the underlined 3 in? [Ones place]
+Solution:
+ For 2381: 2 is in the thousands place, place value = 2000
+ For 5463: 3 is in ones place, place value = 3
+
+
+Part 2: Learnosity Rendering
+
+
+[W02]
+
+
+  
+
+
+
+
+
+
+
+[W03]
+
+
+  
+
+[W04]
+  
+
+
+
+Part 3: Justification
+
+
+In this item the concept moves from known to unknown and from concrete to abstract, first with models. Also observe that students already know about place value of 2 digit numbers and the first part of the item shows how to find place value. In the second part, there is a direct question with models to find the place value, followed by abstract question on place value and place name. Observe the flow of the item. Every part is complete in itself with smaller chunks so that it is not overwhelming for the learner.
+
+
+
+
+
+
+Part 4: An alternative Approach that’s not the best
+
+
+
+
+[W02]
+
+
+[FM]
+
+
+
+
+Place Value is the Value of a digit at a given place
+	
+
+
+
+Here is a  number 4321
+
+
+The underlined digit 4 is at the thousands place. So, its place value is 4 thousands or 4000.
+
+
+What is the place value of the underlined digit of 3219. [3000]
+
+
+[W03]
+
+
+[FM]
+
+
+  
+
+Part 5: Justification: Why this is not a great item
+
+
+In this item, there is a lot of passive learning with a CFU at the end. Also, the question deals only with one place that the thousands place. There is no scaffolding and it is expected that the learner will derive how to find the place value. There is no
+ concrete representation considering the fact that this is just grade 3.
+
+
+
+
+Example 3: Grade 4: Understanding Factors: Define Factors and List Factors of a Number 
+
+
+[W02]
+[DN]
+[instructor-stimulus: explore]
+
+
+Let’s learn about factors!
+Click Play!
+<Simulation >
+
+
+Complete the sentence:
+ [ 2 and 4*, 3 and 5,  2, 3 and 5, 3, 4 and 5] are factors of 8.
+
+
+ A factor of a number divides it [leaving no remainder*, leaving a remainder].
+	The complete JSON of the widget
+
+
+{
+    "possible_responses": [
+        ["2 and 4", "3 and 5", "2,3 and 5", "3,4 and 5"],
+        ["leaving a remainder", "leaving no remainder"]
+    ],
+    "response_container": {
+        "pointer": "left"
+    },
+    "stimulus": "<p>Let’s learn about factors!</p>\n\n<p>Click Play!</p>\n\n<p><iframe allowfullscreen=\"true\" frameborder=\"1\" height=\"450px\" marginheight=\"0px\" marginwidth=\"0px\" name=\"myiFrame\" scrolling=\"no\" src=\"https://master.doszp6gnkur0g.amplifyapp.com/math_v3_1/G4/Factors_and_Multiples/Definition_of_Factors/prod/dist/\" style=\"border:0px #ffffff none;\" width=\"800px\"></iframe></p>\n\n<p>Complete the sentence:</p>\n",
+    "template": "<p>{{response}}&nbsp;are factors of \\(8\\).</p>\n\n<div class=\"definition-box\">\n<p><span id=\"cke_bm_641S\" style=\"display: none;\">&nbsp;</span>&nbsp;A factor of a number divides it {{response}}.</p>\n</div>\n<span id=\"cke_bm_510S\" style=\"display: none;\">&nbsp;</span>",
+    "type": "clozedropdown",
+    "validation": {
+        "scoring_type": "partialMatch",
+        "valid_response": {
+            "score": 1,
+            "value": ["2 and 4", "leaving no remainder"]
+        }
+    },
+    "instant_feedback": true,
+    "is_math": true,
+    "instructor_stimulus": "explore"
+}
+[W03]
+[DN]
+[instructor-stimulus: explore]
+
+
+Let’s do an activity!
+
+
+<Polypad>
+  
+
+
+
+Complete:
+* 3 [is*, is not] a factor of 9.
+
+
+* 6 [is, is not*] a factor of 9.
+
+
+Tval Task:  Is 4 a factor of 9? Explain the reason for your answer.
+ER: No, 4 is not a factor of 9. A number is a factor of another if it divides it exactly, leaving no remainder. When we divide 9 by 4, we get:
+9÷4=2, remainder is 1.
+	
+
+
+
+
+
+Tval Task:  Is 4 a factor of 9? Explain the reason for your answer.
+ER: No, 4 is not a factor of 9. A number is a factor of another if it divides it exactly, leaving no remainder. When we divide 9 by 4, we get:
+9÷4=2, remainder is 1.
+	
+
+[W04]
+[DN]
+[instructor-stimulus: task]
+
+
+Help Owlie find his answer.
+
+
+Owlie in a speech bubble: “ Is 0 a factor of a number?”
+
+
+We [can, cannot*] divide any number by 0. So 0 is [always, never*] a factor of a number.
+
+
+Hint 1: A factor divides a number exactly. Think about what happens when you try to divide by zero. 
+Hint 2: For example, can you calculate 10 ÷ 0? Think: Can you share chocolates with nobody?
+	
+
+Cue Don’t Tell: 
+* What is a factor? [A number that divides another number exactly]
+* Can you divide any number by 0? [No]
+* If we can't divide by 0, can 0 be a factor? [No]
+	
+
+[W05]
+[DN]
+[instructor-stimulus: explore]
+
+
+Let’s find all the factors of a number.
+
+
+Click Play!
+<Simulation>
+
+
+The factors of 12 in increasing order are 1, 2, 3, [4*,5], [6*,5], and [10, 12*].
+
+
+
+
+[W06]
+[DN]
+[instructor-stimulus: explore]
+
+
+We can express any number as a product of its factors.
+The two numbers that we multiply to get the product are its factor pairs.
+	
+
+
+
+  
+
+
+
+Click Play to find the factor pairs of 18!
+
+
+<simulation>
+
+
+The factors of 18 in increasing order: 
+
+
+ 1, 2, [3], [6], 9, and [18].
+
+
+Tval Task:  Your friend says that 3 and 6 and 6 and 3 are two different factor pairs of 18. Is he correct? Why?
+ER: No, your friend is not correct.
+ Factor pairs are made by multiplying two numbers to get a product.
+For 18: 3×6=18 and 6×3=18
+These are the same factor pair because the order doesn't matter in multiplication.
+So, (3, 6) and (6, 3) are just the same pair written differently.
+	
+
+[W07]
+[DN]
+[instructor-stimulus: task]
+Complete the factor pairs of 16:
+
+
+1 x [1, 8, 16*] =16
+[2*, 4,  6] x  8 =16
+4 x  [2, 4*, 6] =16
+
+
+The factors of 16 : [1, 2, 4, 8, 16*; 1, 2, 4, 6, 16; 1, 2, 4, 6, 8, 16].
+
+
+Tval Task:  
+The factor pairs of 16 are (1 and 16), (2 and 8), and (4 and 4). Explain to your teacher how the last factor pair is different from the other pairs of factors. 
+
+
+Can you think of another number that has a similar type of factor pair?
+
+
+ER: In the other pairs like (1 and 16) or (2 and 8), the two numbers are different. But in (4 and 4), it’s a repeated factor — this means 4 × 4 = 16, and we only write it once because switching the order doesn’t give a new pair.
+Another number with a similar factor pair: 9, because: 3×3=9
+	
+
+Hint 1: The two numbers that we multiply to get the product are its factor pairs.
+Hint 2: For example, what number do you multiply by 3 to get 12? What number do you multiply by 6 to get 12?
+	
+
+Cue Don’t tell: 
+* What are factor pairs? [The two numbers that we multiply to get the product are its factor pairs.]
+* What do you multiply by 1 to get 16? [16]
+* What do you multiply by 8 to get 16? [2]
+* What do you multiply by 4 to get 16? [4]
+* Which numbers divide 16 exactly? [1, 2, 4, 8, 16]
+	
+
+
+
+[W08]
+[FM]
+[instructor-stimulus: task]
+List all the factors of 27 in increasing order.
+
+
+1, [3], [9] and [27]
+
+
+Hint 1: Factors are numbers that divide the given number exactly, with no remainder. 
+Hint 2: For example, what numbers divide 15 exactly? Start with 1 and test each number up to 15.
+	
+
+Cue Don’t Tell: 
+* What are ‘factors’? [Numbers that divide a number exactly]
+* Does 1 divide 27? [Yes, 27 ÷ 1 = 27]
+* Does 3 divide 27? [Yes, 27 ÷ 3 = 9]
+* Does 9 divide 27? [Yes, 27 ÷ 9 = 3]
+* Does 27 divide itself? [Yes, 27 ÷ 27 = 1]
+* What do you mean by increasing order? [small to big numbers]
+	
+
+
+
+[W09]
+[MC]
+[instructor-stimulus: task]
+
+
+Observe the factors of the numbers and complete the sentences below.
+
+
+ 18 → 1, 2, 3, 4, 6, 9, 12
+ 16 → 1, 2, 4, 8, 16
+  27 → 1, 3, 9, 27
+
+
+* 1 is the [smallest*, greatest] factor of every number..
+* A number is the [smallest, greatest*] factor of itself.
+
+
+Tval Task: Why do you think 1 and the number itself are factors of all numbers?
+ER: Every number can be divided by 1 and by itself without leaving any remainder.
+So, both 1 and the number divide the number exactly, which makes them factors of every number.
+	
+
+[W10]
+[FM]
+[instructor-stimulus: task]
+
+
+Complete:
+
+
+*  The smallest factor of 35 : [1].
+*  The greatest factor of 28 : [28].
+
+
+
+
+Part 2: Learnosity Version
+
+
+
+
+[W02]
+
+
+  
+
+
+
+
+
+
+
+
+
+JSON:
+{
+    "possible_responses": [
+        ["2 and 4", "3 and 5", "2,3 and 5", "3,4 and 5"],
+        ["leaving a remainder", "leaving no remainder"]
+    ],
+    "response_container": {
+        "pointer": "left"
+    },
+    "stimulus": "<p>Let’s learn about factors!</p>\n\n<p>Click Play!</p>\n\n<p><iframe allowfullscreen=\"true\" frameborder=\"1\" height=\"450px\" marginheight=\"0px\" marginwidth=\"0px\" name=\"myiFrame\" scrolling=\"no\" src=\"https://master.doszp6gnkur0g.amplifyapp.com/math_v3_1/G4/Factors_and_Multiples/Definition_of_Factors/prod/dist/\" style=\"border:0px #ffffff none;\" width=\"800px\"></iframe></p>\n\n<p>Complete the sentence:</p>\n",
+    "template": "<p>{{response}}&nbsp;are factors of \\(8\\).</p>\n\n<div class=\"definition-box\">\n<p><span id=\"cke_bm_641S\" style=\"display: none;\">&nbsp;</span>&nbsp;A factor of a number divides it {{response}}.</p>\n</div>\n<span id=\"cke_bm_510S\" style=\"display: none;\">&nbsp;</span>",
+    "type": "clozedropdown",
+    "validation": {
+        "scoring_type": "partialMatch",
+        "valid_response": {
+            "score": 1,
+            "value": ["2 and 4", "leaving no remainder"]
+        }
+    },
+    "instant_feedback": true,
+    "is_math": true,
+    "instructor_stimulus": "explore"
+}
+
+
+
+
+W03
+  
+
+JSON:
+
+
+{
+    "possible_responses": [
+        ["is", "is not"],
+        ["is", "is not"]
+    ],
+    "response_container": {
+        "pointer": "left"
+    },
+    "stimulus": "<p>Let’s do an activity!</p>\n\n<p><strong><iframe allowfullscreen=\"true\" loading=\"lazy\" frameborder=\"0\" height=\"540px\" marginheight=\"0px\" marginwidth=\"0px\" name=\"polypadFrame\" scrolling=\"no\" src=\"https://polypad.amplify.com/embed/Uu5wWw4fy8OD0Q\" style=\"border:0px #ffffff none;\" width=\"720px\"></iframe></strong></p>\n",
+    "template": "<p>Complete:</p>\n\n<ul>\n\t<li>\\(3\\) {{response}} a factor of \\(9\\).</li>\n\t<li>\\(6\\) {{response}} a factor of \\(9\\).</li>\n</ul>\n",
+    "type": "clozedropdown",
+    "validation": {
+        "scoring_type": "partialMatch",
+        "valid_response": {
+            "score": 1,
+            "value": ["is", "is not"]
+        }
+    },
+    "instant_feedback": true,
+    "is_math": true,
+    "metadata": {
+        "sample_answer": "<p><span id=\"cke_bm_7296S\" style=\"display: none;\">&nbsp;</span>\\(4\\)&nbsp;is not a factor of \\(9\\). A number is a factor of another if it divides it exactly, leaving no remainder. When we divide \\(9\\) by \\(4\\), we get:</p>\n\n<p>\\(9\\div4=2\\), remainder is \\(1\\).</p>\n",
+        "acknowledgements": "<p style=\"display: block; width: 0px; height: 0px; padding: 0px; border: 0px; margin: 0px; position: absolute; top: 0px; left: -9999px; opacity: 0; overflow: hidden;\">&nbsp;</p>\n\n<p>Is \\(4\\) a factor of \\(9\\)? Explain the reason for your answer.</p>\n\n<p style=\"display: block; width: 0px; height: 0px; padding: 0px; border: 0px; margin: 0px; position: absolute; top: 0px; left: -9999px; opacity: 0; overflow: hidden;\">&nbsp;</p>\n"
+    },
+    "instructor_stimulus": "explore"
+}
+
+
+
+
+[W04]
+  
+
+
+
+JSON
+
+
+{
+    "possible_responses": [
+        ["can", "cannot"],
+        ["always", "never"]
+    ],
+    "response_container": {
+        "pointer": "left"
+    },
+    "stimulus": "<p>Help Owlie find his answer.</p>\n\n<p><img height=\"284\" src=\"https://assets.learnosity.com/organisations/473/c8383d03-da70-40e4-9d22-3aae43e16c77.png\" width=\"245\"></p>\n",
+    "template": "We {{response}} divide any number by \\(0\\). So \\(0\\) is {{response}} a factor of a number.",
+    "type": "clozedropdown",
+    "validation": {
+        "scoring_type": "partialMatch",
+        "valid_response": {
+            "score": 1,
+            "value": ["cannot", "never"]
+        }
+    },
+    "instant_feedback": true,
+    "is_math": true,
+    "metadata": {
+        "hints": ["A factor divides a number exactly. Think about what happens when you try to divide by zero.", "For example, can you calculate \\(10\\div0\\)?&nbsp;"],
+        "teacher_tips": ["<p style=\"display: block; width: 0px; height: 0px; padding: 0px; border: 0px; margin: 0px; position: absolute; top: 0px; left: -9999px; opacity: 0; overflow: hidden;\">&nbsp;</p>\n\n<ul>\n\t<li>What is a factor? [A number that divides another number exactly]</li>\n\t<li>Can you divide any number by \\(0\\)? [No]</li>\n\t<li>If we can't divide by \\(0\\), can \\(0\\) be a factor? [No]</li>\n</ul>\n\n<p style=\"display: block; width: 0px; height: 0px; padding: 0px; border: 0px; margin: 0px; position: absolute; top: 0px; left: -9999px; opacity: 0; overflow: hidden;\">&nbsp;</p>\n"]
+    },
+    "instructor_stimulus": "Task"
+}
+
+
+
+
+[W05]
+
+
+  
+
+JSON
+
+
+{
+    "possible_responses": [
+        ["4", "5"],
+        ["7", "6"],
+        ["10", "12"]
+    ],
+    "response_container": {
+        "pointer": "left"
+    },
+    "stimulus": "<grammarly-extension class=\"dnXmp\" data-grammarly-shadow-root=\"true\" style=\"position: absolute; top: 0px; left: 0px; pointer-events: none; --rem: 16;\"></grammarly-extension>\n<p>Let’s find all the factors of a number.</p>\n\n<p>Click Play!</p>\n\n<p><iframe allowfullscreen=\"true\" aria-label=\"To enrich screen reader interactions, please activate Accessibility in Grammarly extension settings\" frameborder=\"1\" height=\"450px\" marginheight=\"0px\" marginwidth=\"0px\" name=\"myiFrame\" scrolling=\"no\" spellcheck=\"false\" src=\"https://master.doszp6gnkur0g.amplifyapp.com/math_v3_1/G4/Factors_and_Multiples/Listing_Factors/prod/dist/\" style=\"border:0px #ffffff none;\" width=\"800px\"></iframe></p>\n",
+    "template": "The <strong>factors </strong>of \\(12\\) in increasing order are \\(1,2,3\\), {{response}}, {{response}}, and {{response}}.",
+    "type": "clozedropdown",
+    "validation": {
+        "scoring_type": "partialMatch",
+        "valid_response": {
+            "score": 1,
+            "value": ["4", "6", "12"]
+        }
+    },
+    "instant_feedback": true,
+    "is_math": true,
+    "instructor_stimulus": "explore"
+}
+
+
+[W06]
+  
+
+
+
+
+
+JSON
+
+
+{
+    "instant_feedback": true,
+    "template": "&nbsp;\\(1\\), \\(2\\), {{response}}, {{response}}, \\(9\\), and {{response}}.",
+    "symbols": [],
+    "response_container": {
+        "template": ""
+    },
+    "ui_style": {
+        "type": "floating-keyboard",
+        "response_font_scale": "normal",
+        "keyboard_below_response_area": true
+    },
+    "validation": {
+        "scoring_type": "partialMatch",
+        "valid_response": {
+            "score": 1,
+            "value": [
+                [{
+                    "method": "equivLiteral",
+                    "value": "3",
+                    "options": {
+                        "ignoreOrder": false,
+                        "inverseResult": false
+                    }
+                }],
+                [{
+                    "method": "equivLiteral",
+                    "value": "6",
+                    "options": {
+                        "ignoreOrder": false,
+                        "inverseResult": false
+                    }
+                }],
+                [{
+                    "method": "equivLiteral",
+                    "value": "18",
+                    "options": {
+                        "ignoreOrder": false,
+                        "inverseResult": false
+                    }
+                }]
+            ]
+        }
+    },
+    "is_math": true,
+    "type": "clozeformula",
+    "metadata": {
+        "sample_answer": "<p>No, your friend is not correct.</p>\n\n<p>&nbsp;Factor pairs are made by multiplying two numbers to get a product.</p>\n\n<p>&nbsp;For \\(18\\): \\(3\\times6=18\\) and \\(6\\times3=18\\)</p>\n\n<p>These are the same factor pair because the order doesn't matter in multiplication.</p>\n\n<p>&nbsp;So, \\((3,6)\\) and \\((6,3)\\) are just the same pair written differently.</p>\n",
+        "acknowledgements": "<p style=\"display: block; width: 0px; height: 0px; padding: 0px; border: 0px; margin: 0px; position: absolute; top: 0px; left: -9999px; opacity: 0; overflow: hidden;\">&nbsp;</p>\n\n<p>Your friend says that \\(3\\) and \\(6\\) and \\(6\\) and \\(3\\) are two different factor pairs of \\(18\\). Is he correct? Why?</p>\n\n<p style=\"display: block; width: 0px; height: 0px; padding: 0px; border: 0px; margin: 0px; position: absolute; top: 0px; left: -9999px; opacity: 0; overflow: hidden;\">&nbsp;</p>\n"
+    },
+    "stimulus": "<div class=\"definition-box\">\n<p>We can express any number as a product of its <strong>factors.</strong></p>\n\n<p>The two numbers that we multiply to get the <strong>product </strong>are its <strong>factor pairs.</strong></p>\n</div>\n\n<p><img height=\"91\" src=\"https://assets.learnosity.com/organisations/473/b6b7f298-199f-463c-bc42-460f3261f2b9.png\" width=\"191\"></p>\n\n<p>Click Play to find the factor pairs of \\(18\\)!</p>\n\n<p><iframe allowfullscreen=\"true\" frameborder=\"1\" height=\"450px\" marginheight=\"0px\" marginwidth=\"0px\" name=\"myiFrame\" scrolling=\"no\" src=\"https://master.doszp6gnkur0g.amplifyapp.com/math_v3_1/G4/Factors_and_Multiples/Listing_factors_of_18/prod/dist/\" style=\"border:0px #ffffff none;\" width=\"800px\"></iframe></p>\n\n<p>The factors of \\(18\\) in increasing order:&nbsp;</p>\n",
+    "instructor_stimulus": "explore",
+    "response_containers": []
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[W07]
+
+
+  
+
+
+
+
+
+
+
+Note: Not copying the JSON of the remaining ones. 
+
+
+
+
+[W08], [W09] and [W10]
+
+
+  
+
+
+
+Part 3 : Justification: 
+
+
+This item begins with a simulation - step by step to teach the concept of factors and there is a CFU at the end of the first part after the simulation to reinforce what all factors of 8 are and what is the definition of factor. Student actually arrives at the definition on their own as it is already taught in the simulation. This is followed by another activity using polypad. It touches upon why 0 cannot be a factor before getting into another simulation to show how all factors can be found using factor tree method, followed by some guided and some independent tasks. There are CFUs at the end of every widget. 
+Flow : Factors as numbers that divide every number exactly- that justifies why 0 is not a factor, then going ahead to find all factors of a number. It did not start with the multiplication definition because then we would not have been able to justify why 0 is not a factor. So the flow is perfect!
+
+
+
+
+
+
+
+
+Example 4: Integers Grade 3: Understand What are integers
+
+
+
+
+[W01]
+[Cloze with text]
+[Instructor Stimulus: Concept-intro]
+
+
+Understand Integers
+	
+
+
+
+
+
+
+
+[W02]
+[DR]
+[Instructor Stimulus: Explore]
+
+
+Speckie is playing on a number track.
+Click Play to see!
+<Simulation>
+How do you read these integers?
+-4 → [negative four]
+-5 → [negative five]
+Options: negative four, negative five, four, five
+
+
+HINTS
+Hint 1: When we see a negative sign (-) in front of a number, we say the word "negative" first, then read the number.
+Hint 2: For example, -3 is read as "negative three" and -8 is read as "negative eight." The minus sign tells us to say "negative."
+TEACHER TIPS
+* What symbol do you see in front of the number 4? [The negative sign or minus sign]
+* When we see this symbol (-) before a number, what word do we say first? [Negative]
+* So how do we read -4? [Negative four]
+* How do we read -5? [Negative five]
+
+
+[W03]
+[DN]
+[Instructor Stimulus: Explore]
+
+
+Let’s learn more about the numbers that we saw!
+Click Play!
+<Simulation>
+
+
+-2 is a [negative*, positive] integer.
+3 is a [positive*, negative] integer.
+0 is [a positive integer, negative integer, neither positive nor negative*].
+
+
+Acknowledgements
+
+
+
+
+Sample Answer:
+Integers to the left of zero on a number line are negative integers.
+Two examples of integers to the left of zero are -3 and -7.
+These integers are called negative integers because they are less than zero.
+Integers to the right  of zero on a number line are positive integers.
+Two examples of integers to the right of zero are 4 and 9.
+These integers are called positive integers because they are greater than zero.
+
+
+Teacher tips:
+* What sign is there in front of 2?
+* Does 0 have any sign? 
+* Is there a sign in front of 3? What does that tell us?
+Hints:
+Hint 1: Look at the signs in front of the numbers. 
+Hint 2: A minus (-) sign means the number is negative.
+A plus (+) sign or no sign means the number is positive (except for zero).
+
+
+[W04]
+[DN]
+[Instructor Stimulus: Task]
+
+
+-11 is a [positive integer, negative integer]
+99 is a [negative, positive integer].
+Teacher Tips:
+* What do you notice about the number -11? What sign does it have? [It has a minus sign, so it's negative]
+* What about 99? Does it have any sign in front of it? [No sign means it's positive]
+* Where would these numbers be located on a number line relative to zero? [-11 is to the left of zero, 99 is to the right of zero]
+Hints:
+Hint 1: Look at the signs in front of the numbers. What does a minus sign tell you?
+Hint 2: Remember that numbers without any sign are positive, and numbers with a minus sign (-) are negative.
+
+
+[W05]
+[CL]
+[Instructor Stimulus: Task]
+
+
+Place the integers in the correct boxes.
+
+
+Negative Integers
+	Neither Positive Nor Negative
+	Positive Integers
+	[-4], [-9], [-15]
+	[0]
+	[6], [23]
+	Options: -4, -9, 0, 6, -15, 23
+
+
+Teacher Tips:
+* Which numbers have a minus sign in front of them? [-4, -9, -15]
+* Is there a number that is neither positive nor negative? [Yes, 0]
+* What about the remaining numbers? [6 and 23 are positive]
+Hints:
+Hint 1: Sort the numbers by their signs first. Which ones have minus signs? 
+Hint 2: Remember that 0 is special - it's neither positive nor negative. All other numbers go in either positive or negative boxes
+
+
+
+
+Part 2: Learnosity 
+
+
+[W02]
+
+
+  
+
+JSON:
+{
+    "possible_responses": ["negative four", "negative five", "four", "five"],
+    "response_container": {
+        "pointer": "left"
+    },
+    "stimulus": "<p>Speckie is playing on a number track.</p>\n\n<p>Click <em>Play</em> to see!</p>\n\n<p><iframe allowfullscreen=\"true\" frameborder=\"1\" height=\"427.5px\" loading=\"lazy\" marginheight=\"0px\" marginwidth=\"0px\" name=\"myiFrame\" scrolling=\"no\" src=\"\nhttps://master.d1otlqtd6110v2.amplifyapp.com/USA/G6/integers/understand-integers/prod/dist\n\" style=\"border:0px #ffffff none;\" width=\"760px\"></iframe></p>\n\n<p>How do you read these integers?</p>\n",
+    "template": "<p>\\(-4\\rightarrow\\) {{response}}</p>\n\n<p>\\(-5\\rightarrow\\) {{response}}</p>\n",
+    "type": "clozeassociation",
+    "validation": {
+        "scoring_type": "partialMatch",
+        "valid_response": {
+            "score": 1,
+            "value": ["negative four", "negative five"]
+        }
+    },
+    "instant_feedback": true,
+    "is_math": true,
+    "metadata": {
+        "hints": ["When we see a negative sign \\(\\left(-\\right)\\) in front of a number, we say the word \"negative\" first, then read the number.", "For example, \\(-3\\) is read as \"negative three\" and \\(-8\\) is read as \"negative eight.\" The minus sign tells us to say \"negative.\""],
+        "teacher_tips": ["<ul>\n\t<li>What symbol do you see in front of the number \\(4\\)? [The negative sign or minus sign]</li>\n\t<li>When we see this symbol \\(\\left(-\\right)\\) before a number, what word do we say first? [Negative]</li>\n\t<li>So how do we read \\(-4\\)? [Negative four]</li>\n\t<li>How do we read \\(-5\\)? [Negative five]</li>\n</ul>\n"],
+        "solution": ["<p>a.&nbsp;negative four</p>\n\n<p>b.&nbsp;negative five</p>\n"]
+    },
+    "instructor_stimulus": "Explore",
+    "ui_style": {
+        "show_drag_handle": false
+    },
+    "shuffle_options": true
+}
+
+
+
+
+[W03]
+
+
+  
+
+
+
+JSON
+
+
+{
+    "possible_responses": [
+        ["negative", "positive"],
+        ["positive", "negative"],
+        ["a positive integer", "a negative integer", "neither positive nor negative"]
+    ],
+    "response_container": {
+        "pointer": "left"
+    },
+    "stimulus": "<p>Let’s learn more about the numbers that we saw!</p>\n\n<p>Click Play!</p>\n\n<p><iframe allowfullscreen=\"true\" frameborder=\"1\" height=\"427.5px\" loading=\"lazy\" marginheight=\"0px\" marginwidth=\"0px\" name=\"myiFrame\" scrolling=\"no\" src=\"\nhttps://master.d1otlqtd6110v2.amplifyapp.com/USA/G6/integers/understanding-positive-integers-negative-integers-and-0/prod/dist\n\" style=\"border:0px #ffffff none;\" width=\"760px\"></iframe></p>\n",
+    "template": "<p>\\(-2\\) is a {{response}} integer.</p>\n\n<p>\\(3\\) is a {{response}} integer.</p>\n\n<p>\\(0\\) is {{response}}.</p>\n",
+    "type": "clozedropdown",
+    "validation": {
+        "scoring_type": "partialMatch",
+        "valid_response": {
+            "score": 1,
+            "value": ["negative", "positive", "neither positive nor negative"]
+        }
+    },
+    "instant_feedback": true,
+    "is_math": true,
+    "metadata": {
+        "acknowledgements": "Explain what positive and negative integers are using your own examples.",
+        "hints": ["Look at the signs in front of the numbers.&nbsp;", "<p>A minus \\((-)\\) sign means the number is negative.</p>\n\n<p>A plus \\((+)\\) sign or no sign means the number is positive (except for zero).</p>\n"],
+        "teacher_tips": ["<p>What sign is there in front of \\(2\\)?</p>\n\n<p>Does \\(0\\) have any sign?</p>\n\n<p>Is there a sign in front of \\(3\\)? What does that tell us?</p>\n"],
+        "sample_answer": "<p>Integers to the left of zero are <strong>negative integers</strong>.</p>\n\n<p>Two examples of integers to the left of zero are \\(\\bf{-3}\\) and \\(\\bf-7\\).</p>\n\n<p>These integers are called <strong>negative integers</strong> because they are less than zero.</p>\n\n<p>Integers to the right of zero are <strong>positive integers</strong>.</p>\n\n<p>Two examples of integers to the right of zero are \\(\\bf{4}\\) and \\(\\bf{9}\\).</p>\n\n<p>These integers are called <strong>positive integers</strong> because they are greater than zero.</p>\n",
+        "solution": ["<p dir=\"ltr\">\\(-2\\)<b> is a negative integer.</b></p>\n\n<p dir=\"ltr\">\\(3\\)<b> is a positive integer.</b></p>\n\n<p dir=\"ltr\">\\(0\\)&nbsp;<b>is neither positive nor negative</b></p>\n"]
+    },
+    "instructor_stimulus": "Explore"
+}
+
+
+[W05]

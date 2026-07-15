@@ -270,16 +270,21 @@ def render_sidebar() -> None:
         complete = [r for r in results.values() if r.get("status") == "Complete"]
         st.caption(f"{len(complete)} complete · {len(results) - len(complete)} pending")
 
-        if st.button("✨ Generate all AI reviews", use_container_width=True,
-                     help="Populate the AI (20%) component for every complete lesson"):
-            todo = [r["activity_ref"] for r in complete
-                    if r["activity_ref"] not in st.session_state.get("ai_reviews", {})]
-            prog = st.progress(0, text=f"0/{len(todo)}")
-            for i, ref in enumerate(todo):
-                generate_ai_for_lesson(ref)
-                prog.progress((i + 1) / max(len(todo), 1), text=f"{i+1}/{len(todo)}")
-            prog.empty()
-            st.rerun()
+        from config.settings import AI_REVIEW_ENABLED
+        if AI_REVIEW_ENABLED:
+            if st.button("✨ Generate all AI reviews", use_container_width=True,
+                         help="Populate the AI (20%) component for every complete lesson"):
+                todo = [r["activity_ref"] for r in complete
+                        if r["activity_ref"] not in st.session_state.get("ai_reviews", {})]
+                prog = st.progress(0, text=f"0/{len(todo)}")
+                for i, ref in enumerate(todo):
+                    generate_ai_for_lesson(ref)
+                    prog.progress((i + 1) / max(len(todo), 1), text=f"{i+1}/{len(todo)}")
+                prog.empty()
+                st.rerun()
+        else:
+            st.caption("🔒 AI review (20%) is on hold until Learnosity access — "
+                       "set `AI_REVIEW_ENABLED=1` to enable.")
 
         st.divider()
         if st.button("🚩 Errors overview", use_container_width=True):

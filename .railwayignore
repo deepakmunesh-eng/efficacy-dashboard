@@ -6,3 +6,6 @@ package.json.txt
 package-lock.json.txt
 # Large review PDFs — the runtime uses data/learning_review_reference.md (+docx fallback)
 review files/*.pdf
+# Ad-hoc review exports (reviewer PII) — not needed at runtime
+pending_reviews.csv
+pending_2_reviews_left.csv

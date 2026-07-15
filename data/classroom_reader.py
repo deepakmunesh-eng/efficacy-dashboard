@@ -5,6 +5,8 @@ scoring engine expects (learning_q1..q5, practice_q7..q9, overall_effectiveness)
 """
 from __future__ import annotations
 
+import re
+
 import requests
 
 from config.settings import CLASSROOM_ADMIN_URL, CLASSROOM_ADMIN_KEY
@@ -79,3 +81,41 @@ def group_classroom_by_lesson(records: list[dict]) -> dict[str, list[dict]]:
         if key:
             grouped.setdefault(key, []).append(r)
     return grouped
+
+
+def _ref_core(ref: str) -> str:
+    """Normalise an activity ref to a comparable lesson-name core so the two
+    naming schemes match: the coded 'US-G3-Find-the-Squares-...-V3-1.W03' and
+    the human 'Find the Squares of Numbers up to 20.W01-V3.1' both reduce to
+    'findthesquaresofnumbersupto20'. Drops the US/grade prefix, the version tail
+    (from 'v3' on) and any trailing week token."""
+    s = re.sub(r"[^a-z0-9]", "", (ref or "").lower())
+    s = re.sub(r"^us", "", s)
+    s = re.sub(r"^g\d+", "", s)          # grade token, e.g. g3
+    m = re.search(r"v3", s)               # cut at the version marker
+    if m:
+        s = s[: m.start()]
+    s = re.sub(r"w\d+$", "", s)           # trailing week token, e.g. w01
+    return s
+
+
+def match_classroom_to_lessons(records: list[dict],
+                               lesson_refs) -> dict[str, list[dict]]:
+    """Map classroom records onto sheet lesson activity_refs — exact match first,
+    then a normalised-core fallback (handles the two ref naming schemes). Keyed
+    by the SHEET activity_ref so it lines up with the scoring pipeline."""
+    lesson_refs = list(lesson_refs)
+    exact = set(lesson_refs)
+    by_core: dict[str, str] = {}
+    for lr in lesson_refs:
+        by_core.setdefault(_ref_core(lr), lr)   # first wins on core collision
+
+    out: dict[str, list[dict]] = {}
+    for r in records:
+        ref = (r.get("activity_ref") or "").strip()
+        if not ref:
+            continue
+        target = ref if ref in exact else by_core.get(_ref_core(ref))
+        if target:
+            out.setdefault(target, []).append(r)
+    return out

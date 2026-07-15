@@ -23,7 +23,7 @@ st.set_page_config(
 
 from config.settings import LESSON_REVIEW_XLSX_URL
 from data.sheets_reader import fetch_all_lesson_reviews, fetch_error_reports
-from data.classroom_reader import fetch_classroom_reviews, group_classroom_by_lesson
+from data.classroom_reader import fetch_classroom_reviews, match_classroom_to_lessons
 from data.lookup_reader import fetch_lesson_lookup
 from processing.flow_a import run_flow_a
 from processing.flow_b import run_flow_b, _BACKFILL_FIELDS
@@ -79,7 +79,7 @@ def process_all_lessons(force: bool = False) -> dict:
     progress.progress(20, text="Deduplicating reviews…")
     clean_rows = deduplicate_reviews(raw_rows)
     lessons    = group_by_lesson(clean_rows)
-    classroom_by_lesson = group_classroom_by_lesson(classroom_records or [])
+    classroom_by_lesson = match_classroom_to_lessons(classroom_records or [], lessons.keys())
     errors_by_lesson    = group_errors_by_lesson(error_records if isinstance(error_records, list) else [])
 
     # Learnosity content cache (item-list for AI item refs; not health-critical).
@@ -291,7 +291,7 @@ def main() -> None:
         st.divider()
         results = st.session_state.get("results", {})
         if results:
-            simple_view.render_grade_nav(results, nav)
+            simple_view.render_grade_nav(results, nav, mode)
 
         st.divider()
         complete = [r for r in results.values() if r.get("status") == "Complete"]

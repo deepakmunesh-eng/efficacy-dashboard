@@ -79,8 +79,16 @@ def _errors_chip(count: int) -> str:
 
 # ── Sidebar grade nav ───────────────────────────────────────────────────────────
 
-def render_grade_nav(results: dict, nav) -> None:
-    """Render the grade list — call this inside a `with st.sidebar:` block."""
+def _grade_chip(chapters: dict, mode: str) -> str:
+    lessons = [r for ch in chapters.values() for r in ch]
+    if mode == "errors":
+        return _errors_chip(sum(_err_count(r) for r in lessons))
+    return _health_chip([_lesson_score(r) for r in lessons if r.get("status") == "Complete"])
+
+
+def render_grade_nav(results: dict, nav, mode: str = "health") -> None:
+    """Render the grade list with a grade-level rating/error chip.
+    Call this inside a `with st.sidebar:` block."""
     tree = _group_tree(results)
     grades = sorted(tree, key=_grade_sort_key)
     if not grades:
@@ -90,7 +98,9 @@ def render_grade_nav(results: dict, nav) -> None:
     st.markdown("###### 📁 USCC")
     for g in grades:
         selected = (g == sel)
-        if st.button(_grade_label(g), key=f"gnav_{g}", use_container_width=True,
+        chip = _grade_chip(tree[g], mode)
+        if st.button(f"{_grade_label(g)}   ·   {chip}", key=f"gnav_{g}",
+                     use_container_width=True,
                      type="primary" if selected else "secondary"):
             nav(grade=g)
 
@@ -134,20 +144,39 @@ def _breadcrumb(nav, grade, chapter, lesson=None) -> None:
 
 
 def _render_chapter_list(tree, grade, nav, mode) -> None:
-    st.markdown(f"### {_grade_label(grade)}")
-    st.caption("Chapters — click to open lessons.")
     chapters = tree.get(grade, {})
-    for chapter in sorted(chapters):
-        lessons = chapters[chapter]
-        if mode == "errors":
-            chip = _errors_chip(sum(_err_count(r) for r in lessons))
-        else:
-            chip = _health_chip([_lesson_score(r) for r in lessons
-                                 if r.get("status") == "Complete"])
-        n_complete = sum(1 for r in lessons if r.get("status") == "Complete")
-        if st.button(f"{chip}   ·   {chapter}   ({n_complete}/{len(lessons)})",
-                     key=f"ch_{mode}_{grade}_{chapter}", use_container_width=True):
-            nav(grade=grade, chapter=chapter)
+    all_lessons = [r for ls in chapters.values() for r in ls]
+
+    # ── Grade-level rating banner ─────────────────────────────────────────────
+    if mode == "errors":
+        total_err = sum(_err_count(r) for r in all_lessons)
+        st.markdown(f"### {_grade_label(grade)} · 🚩 {total_err} error(s)")
+    else:
+        roll = rollup([_lesson_score(r) for r in all_lessons if r.get("status") == "Complete"])
+        chip = (f"{_RAG_EMOJI.get(roll['rating'], '⚪')} {roll['score']:.1f}/5 · {roll['rating']}"
+                if roll["n"] else "⚪ Pending")
+        st.markdown(f"### {_grade_label(grade)} · {chip}")
+    n_comp = sum(1 for r in all_lessons if r.get("status") == "Complete")
+    st.caption(f"{len(chapters)} chapters · {n_comp}/{len(all_lessons)} lessons complete "
+               "· click a chapter to open its lessons")
+
+    # ── Chapter grid (3 per row → fits one screen, no long scroll) ────────────
+    names = sorted(chapters)
+    n_cols = 3
+    for row_start in range(0, len(names), n_cols):
+        cols = st.columns(n_cols)
+        for col, chapter in zip(cols, names[row_start:row_start + n_cols]):
+            lessons = chapters[chapter]
+            if mode == "errors":
+                chip = _errors_chip(sum(_err_count(r) for r in lessons))
+            else:
+                chip = _health_chip([_lesson_score(r) for r in lessons
+                                     if r.get("status") == "Complete"])
+            n_c = sum(1 for r in lessons if r.get("status") == "Complete")
+            with col:
+                if st.button(f"{chip}\n\n{chapter}\n\n({n_c}/{len(lessons)})",
+                             key=f"ch_{mode}_{grade}_{chapter}", use_container_width=True):
+                    nav(grade=grade, chapter=chapter)
 
 
 def _render_lesson_list(tree, grade, chapter, nav, mode) -> None:

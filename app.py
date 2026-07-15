@@ -251,8 +251,26 @@ def generate_ai_for_lesson(activity_ref: str) -> dict:
     return ai
 
 
-# ── Sidebar ────────────────────────────────────────────────────────────────────
-def render_sidebar() -> None:
+# ── Main ─────────────────────────────────────────────────────────────────────
+def main() -> None:
+    if "results" not in st.session_state:
+        st.session_state["results"] = load_all_results()
+    st.session_state.setdefault("nav", {})
+    st.session_state.setdefault("ai_reviews", {})
+    st.session_state.setdefault("view_mode", "🩺 Health")
+
+    def nav(home=False, grade=None, chapter=None, lesson=None):
+        if home:
+            st.session_state["nav"] = {}
+        else:
+            nn = {}
+            if grade:   nn["grade"] = grade
+            if chapter: nn["chapter"] = chapter
+            if lesson:  nn["lesson"] = lesson
+            st.session_state["nav"] = nn
+        st.rerun()
+
+    # ── Sidebar: Refresh · View selector · Grades ─────────────────────────────
     with st.sidebar:
         st.markdown("### 📐 Efficacy Dashboard")
         last = st.session_state.get("last_refresh")
@@ -266,14 +284,22 @@ def render_sidebar() -> None:
             st.rerun()
 
         st.divider()
+        view = st.radio("View", ["🩺 Health", "🚩 Errors reported"], key="view_mode",
+                        label_visibility="collapsed")
+        mode = "errors" if "Errors" in view else "health"
+
+        st.divider()
         results = st.session_state.get("results", {})
+        if results:
+            simple_view.render_grade_nav(results, nav)
+
+        st.divider()
         complete = [r for r in results.values() if r.get("status") == "Complete"]
         st.caption(f"{len(complete)} complete · {len(results) - len(complete)} pending")
 
         from config.settings import AI_REVIEW_ENABLED
         if AI_REVIEW_ENABLED:
-            if st.button("✨ Generate all AI reviews", use_container_width=True,
-                         help="Populate the AI (20%) component for every complete lesson"):
+            if st.button("✨ Generate all AI reviews", use_container_width=True):
                 todo = [r["activity_ref"] for r in complete
                         if r["activity_ref"] not in st.session_state.get("ai_reviews", {})]
                 prog = st.progress(0, text=f"0/{len(todo)}")
@@ -283,56 +309,24 @@ def render_sidebar() -> None:
                 prog.empty()
                 st.rerun()
         else:
-            st.caption("🔒 AI review (20%) is on hold until Learnosity access — "
-                       "set `AI_REVIEW_ENABLED=1` to enable.")
+            st.caption("🔒 AI review (20%) on hold until Learnosity access "
+                       "(`AI_REVIEW_ENABLED=1`).")
 
-# ── Main ─────────────────────────────────────────────────────────────────────
-def main() -> None:
-    if "results" not in st.session_state:
-        st.session_state["results"] = load_all_results()
-    st.session_state.setdefault("nav", {})
-    st.session_state.setdefault("ai_reviews", {})
-    results = st.session_state["results"]
-
-    render_sidebar()
-
-    st.markdown("# Curriculum Efficacy Dashboard")
+    # ── Main area (full width) ────────────────────────────────────────────────
+    title = "🚩 Errors Reported" if mode == "errors" else "Curriculum Efficacy Dashboard"
+    st.markdown(f"# {title}")
+    if mode == "health":
+        st.caption("Health = Teacher 40% · Class 30% · Exit-data 10% · AI 20% "
+                   "(missing rescaled). Good ≥4.0 · Average 2.5–3.9 · Bad <2.5.")
+    else:
+        st.caption("Errors are tracked separately and do **not** affect health.")
 
     if not results:
         st.info("No data yet — click **Refresh Data** in the sidebar to pull the "
                 "latest lesson reviews and run the scoring pipeline.")
         return
 
-    def nav(home=False, grade=None, chapter=None, lesson=None, mode=None):
-        cur = dict(st.session_state.get("nav", {}))
-        cur_mode = mode or cur.get("mode", "health")
-        if home:
-            st.session_state["nav"] = {"mode": cur_mode}
-        elif grade is None and chapter is None and lesson is None and mode:
-            cur["mode"] = mode                       # mode switch — keep position
-            st.session_state["nav"] = cur
-        else:
-            nn = {"mode": cur_mode}
-            if grade:   nn["grade"] = grade
-            if chapter: nn["chapter"] = chapter
-            if lesson:  nn["lesson"] = lesson
-            st.session_state["nav"] = nn
-        st.rerun()
-
-    mode = st.session_state["nav"].get("mode", "health")
-
-    # ── Health / Errors toggle ────────────────────────────────────────────────
-    t1, t2, _ = st.columns([1.2, 1.6, 5])
-    with t1:
-        if st.button("🩺 Health", use_container_width=True,
-                     type="primary" if mode == "health" else "secondary"):
-            nav(mode="health")
-    with t2:
-        if st.button("🚩 Errors reported", use_container_width=True,
-                     type="primary" if mode == "errors" else "secondary"):
-            nav(mode="errors")
-
-    simple_view.render_browse(results, nav, generate_ai_for_lesson, mode)
+    simple_view.render_content(results, nav, generate_ai_for_lesson, mode)
 
 
 if __name__ == "__main__":

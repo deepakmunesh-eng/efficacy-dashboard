@@ -1,9 +1,9 @@
-"""Simple two-pane UI — persistent Grade nav (left) + content (right).
+"""Simple UI — grade nav lives in the SIDEBAR; the main area is full-width.
 
-Left pane: the grade list (always visible, selected grade highlighted).
-Right pane: chapters -> lessons -> lesson detail for the selected grade.
-A top toggle switches between Health and Errors-reported modes; both drill down
-the same Grade -> Chapter -> Lesson tree (errors are NOT a flat spreadsheet).
+Sidebar: Refresh, a view selector (Health / Errors reported), then the grade
+list. Main area: chapters -> lessons -> lesson detail for the selected grade,
+using the full width (no cramped side column). Health and Errors are separate
+views chosen in the sidebar; both drill the same Grade -> Chapter -> Lesson tree.
 """
 from __future__ import annotations
 
@@ -49,13 +49,19 @@ def _grade_sort_key(g: str):
 
 
 def _group_tree(results: dict) -> dict:
-    """{grade: {chapter: [result, ...]}}."""
     tree: dict = {}
     for r in results.values():
         g = r.get("grade") or "Unknown"
         c = r.get("chapter") or "Unknown chapter"
         tree.setdefault(g, {}).setdefault(c, []).append(r)
     return tree
+
+
+def _selected_grade(tree: dict, grades: list) -> str | None:
+    n = st.session_state.get("nav", {})
+    if n.get("grade") in tree:
+        return n["grade"]
+    return grades[0] if grades else None
 
 
 # ── Chips ──────────────────────────────────────────────────────────────────────
@@ -68,68 +74,68 @@ def _health_chip(scores: list[float]) -> str:
 
 
 def _errors_chip(count: int) -> str:
-    return f"🚩 {count}" if count else "· 0"
+    return f"🚩 {count}" if count else "·"
 
 
-# ── Two-pane browse ─────────────────────────────────────────────────────────────
+# ── Sidebar grade nav ───────────────────────────────────────────────────────────
 
-def render_browse(results: dict, nav, on_generate_ai, mode: str) -> None:
+def render_grade_nav(results: dict, nav) -> None:
+    """Render the grade list — call this inside a `with st.sidebar:` block."""
+    tree = _group_tree(results)
+    grades = sorted(tree, key=_grade_sort_key)
+    if not grades:
+        st.caption("No grades yet — Refresh.")
+        return
+    sel = _selected_grade(tree, grades)
+    st.markdown("###### 📁 USCC")
+    for g in grades:
+        selected = (g == sel)
+        if st.button(_grade_label(g), key=f"gnav_{g}", use_container_width=True,
+                     type="primary" if selected else "secondary"):
+            nav(grade=g)
+
+
+# ── Main content (full width) ────────────────────────────────────────────────
+
+def render_content(results: dict, nav, on_generate_ai, mode: str) -> None:
     tree = _group_tree(results)
     grades = sorted(tree, key=_grade_sort_key)
     if not grades:
         st.info("No data yet — click **Refresh Data** in the sidebar.")
         return
-
+    sel = _selected_grade(tree, grades)
     n = st.session_state["nav"]
-    sel_grade = n.get("grade") if n.get("grade") in tree else grades[0]
 
-    left, right = st.columns([1, 3.4], gap="medium")
-
-    # ── Left: grade list (persistent) ─────────────────────────────────────────
-    with left:
-        st.markdown("###### 📁 USCC")
-        for g in grades:
-            selected = (g == sel_grade)
-            if st.button(_grade_label(g), key=f"gnav_{mode}_{g}",
-                         use_container_width=True,
-                         type="primary" if selected else "secondary"):
-                nav(grade=g, mode=mode)
-
-    # ── Right: chapters / lessons / detail ────────────────────────────────────
-    with right:
-        if n.get("lesson"):
-            r = results.get(n["lesson"])
-            if not r:
-                st.error("Lesson not found."); return
-            _breadcrumb(nav, mode, sel_grade, r.get("chapter"), r.get("lesson"))
-            if mode == "errors":
-                _render_errors(r, heading=True)
-            else:
-                _render_lesson_body(r, on_generate_ai)
-        elif n.get("chapter"):
-            _render_lesson_list(tree, sel_grade, n["chapter"], nav, mode)
+    if n.get("lesson"):
+        r = results.get(n["lesson"])
+        if not r:
+            st.error("Lesson not found."); return
+        _breadcrumb(nav, sel, r.get("chapter"), r.get("lesson"))
+        if mode == "errors":
+            _render_errors(r, heading=True)
         else:
-            _render_chapter_list(tree, sel_grade, nav, mode)
+            _render_lesson_body(r, on_generate_ai)
+    elif n.get("chapter"):
+        _render_lesson_list(tree, sel, n["chapter"], nav, mode)
+    else:
+        _render_chapter_list(tree, sel, nav, mode)
 
 
-def _breadcrumb(nav, mode, grade, chapter, lesson=None) -> None:
-    c1, c2 = st.columns([3, 1])
+def _breadcrumb(nav, grade, chapter, lesson=None) -> None:
+    c1, c2 = st.columns([4, 1])
     with c1:
         trail = f"{_grade_label(grade)}  ›  {chapter}"
         if lesson:
             trail += f"  ›  **{lesson}**"
         st.markdown(trail)
     with c2:
-        back_to = "chapters" if lesson else "grades"
         if st.button(f"← {'Lessons' if lesson else 'Chapters'}", use_container_width=True):
-            if lesson:
-                nav(grade=grade, chapter=chapter, mode=mode)
-            else:
-                nav(grade=grade, mode=mode)
+            nav(grade=grade, chapter=chapter) if lesson else nav(grade=grade)
 
 
 def _render_chapter_list(tree, grade, nav, mode) -> None:
     st.markdown(f"### {_grade_label(grade)}")
+    st.caption("Chapters — click to open lessons.")
     chapters = tree.get(grade, {})
     for chapter in sorted(chapters):
         lessons = chapters[chapter]
@@ -141,11 +147,11 @@ def _render_chapter_list(tree, grade, nav, mode) -> None:
         n_complete = sum(1 for r in lessons if r.get("status") == "Complete")
         if st.button(f"{chip}   ·   {chapter}   ({n_complete}/{len(lessons)})",
                      key=f"ch_{mode}_{grade}_{chapter}", use_container_width=True):
-            nav(grade=grade, chapter=chapter, mode=mode)
+            nav(grade=grade, chapter=chapter)
 
 
 def _render_lesson_list(tree, grade, chapter, nav, mode) -> None:
-    _breadcrumb(nav, mode, grade, chapter)
+    _breadcrumb(nav, grade, chapter)
     st.markdown(f"### {chapter}")
     for r in sorted(tree.get(grade, {}).get(chapter, []), key=lambda x: x.get("lesson", "")):
         ref = r.get("activity_ref", "")
@@ -158,7 +164,7 @@ def _render_lesson_list(tree, grade, chapter, nav, mode) -> None:
         name = r.get("lesson") or ref
         if st.button(f"{chip}   ·   {name}", key=f"ls_{mode}_{ref}",
                      use_container_width=True):
-            nav(grade=grade, chapter=chapter, lesson=ref, mode=mode)
+            nav(grade=grade, chapter=chapter, lesson=ref)
 
 
 # ── Lesson detail ────────────────────────────────────────────────────────────
@@ -169,7 +175,6 @@ def _render_lesson_body(result: dict, on_generate_ai) -> None:
 
     if result.get("status") != "Complete":
         st.warning(result.get("one_line_summary", "This lesson is still pending review."))
-        _render_errors(result)
         return
 
     score = float(result.get("weighted_score") or 0)
@@ -211,9 +216,6 @@ def _render_lesson_body(result: dict, on_generate_ai) -> None:
     st.markdown("#### AI review of learning items")
     _render_ai_review(result, on_generate_ai)
 
-    with st.expander(f"🚩 Errors reported ({_err_count(result)})", expanded=False):
-        _render_errors(result, heading=False)
-
 
 def _render_ai_review(result: dict, on_generate_ai) -> None:
     from config.settings import AI_REVIEW_ENABLED
@@ -231,8 +233,7 @@ def _render_ai_review(result: dict, on_generate_ai) -> None:
         return
 
     if ai is None:
-        st.caption("Scores learning items (Flow, Visuals, Text load, Response boxes, "
-                   "Accuracy); contributes 20% of health.")
+        st.caption("Scores learning items across the five checks; contributes 20% of health.")
         if st.button("✨ Generate AI review", key=f"gen_ai_{ref}"):
             with st.spinner("Generating AI review…"):
                 on_generate_ai(ref)

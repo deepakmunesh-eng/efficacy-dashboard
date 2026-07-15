@@ -286,38 +286,6 @@ def render_sidebar() -> None:
             st.caption("🔒 AI review (20%) is on hold until Learnosity access — "
                        "set `AI_REVIEW_ENABLED=1` to enable.")
 
-        st.divider()
-        if st.button("🚩 Errors overview", use_container_width=True):
-            st.session_state["nav"] = {"errors": True}
-            st.rerun()
-
-
-def render_errors_overview(results: dict, nav) -> None:
-    if st.button("← Home"):
-        nav(home=True)
-    st.subheader("🚩 Errors reported (all lessons)")
-    st.caption("Tracked separately — does not affect health. Grade → Chapter → Lesson.")
-
-    rows = []
-    for r in results.values():
-        for e in (r.get("detected_errors") or []):
-            rows.append({
-                "Grade": r.get("grade", ""), "Chapter": r.get("chapter", ""),
-                "Lesson": r.get("lesson", ""), "Item": e.get("item_ref") or e.get("item") or "",
-                "Severity": e.get("severity", ""),
-                "Error": e.get("text") or e.get("error_details") or e.get("error_type") or "",
-                "Reviewer": e.get("reviewer") or e.get("reviewer_name") or "",
-            })
-    if not rows:
-        st.info("No errors reported.")
-        return
-    import pandas as pd
-    df = pd.DataFrame(rows).sort_values(["Grade", "Chapter", "Lesson"])
-    st.dataframe(df, use_container_width=True, hide_index=True)
-    st.download_button("Download CSV", df.to_csv(index=False).encode(),
-                       "errors_reported.csv", "text/csv")
-
-
 # ── Main ─────────────────────────────────────────────────────────────────────
 def main() -> None:
     if "results" not in st.session_state:
@@ -335,34 +303,36 @@ def main() -> None:
                 "latest lesson reviews and run the scoring pipeline.")
         return
 
-    def nav(home=False, grade=None, chapter=None, lesson=None, errors=False):
+    def nav(home=False, grade=None, chapter=None, lesson=None, mode=None):
+        cur = dict(st.session_state.get("nav", {}))
+        cur_mode = mode or cur.get("mode", "health")
         if home:
-            st.session_state["nav"] = {}
-        elif errors:
-            st.session_state["nav"] = {"errors": True}
+            st.session_state["nav"] = {"mode": cur_mode}
+        elif grade is None and chapter is None and lesson is None and mode:
+            cur["mode"] = mode                       # mode switch — keep position
+            st.session_state["nav"] = cur
         else:
-            n = {}
-            if grade:   n["grade"] = grade
-            if chapter: n["chapter"] = chapter
-            if lesson:  n["lesson"] = lesson
-            st.session_state["nav"] = n
+            nn = {"mode": cur_mode}
+            if grade:   nn["grade"] = grade
+            if chapter: nn["chapter"] = chapter
+            if lesson:  nn["lesson"] = lesson
+            st.session_state["nav"] = nn
         st.rerun()
 
-    n = st.session_state["nav"]
-    if n.get("errors"):
-        render_errors_overview(results, nav)
-    elif n.get("lesson"):
-        lr = results.get(n["lesson"])
-        if lr:
-            simple_view.render_lesson(lr, nav, generate_ai_for_lesson)
-        else:
-            st.error("Lesson not found."); nav(home=True)
-    elif n.get("chapter"):
-        simple_view.render_chapter(results, n["grade"], n["chapter"], nav)
-    elif n.get("grade"):
-        simple_view.render_grade(results, n["grade"], nav)
-    else:
-        simple_view.render_home(results, nav)
+    mode = st.session_state["nav"].get("mode", "health")
+
+    # ── Health / Errors toggle ────────────────────────────────────────────────
+    t1, t2, _ = st.columns([1.2, 1.6, 5])
+    with t1:
+        if st.button("🩺 Health", use_container_width=True,
+                     type="primary" if mode == "health" else "secondary"):
+            nav(mode="health")
+    with t2:
+        if st.button("🚩 Errors reported", use_container_width=True,
+                     type="primary" if mode == "errors" else "secondary"):
+            nav(mode="errors")
+
+    simple_view.render_browse(results, nav, generate_ai_for_lesson, mode)
 
 
 if __name__ == "__main__":

@@ -172,9 +172,8 @@ def _render_chapter_list(tree, grade, nav, mode) -> None:
             else:
                 chip = _health_chip([_lesson_score(r) for r in lessons
                                      if r.get("status") == "Complete"])
-            n_c = sum(1 for r in lessons if r.get("status") == "Complete")
             with col:
-                if st.button(f"{chip}\n\n{chapter}\n\n({n_c}/{len(lessons)})",
+                if st.button(f"{chip}\n\n{chapter}",
                              key=f"ch_{mode}_{grade}_{chapter}", use_container_width=True):
                     nav(grade=grade, chapter=chapter)
 

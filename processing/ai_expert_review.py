@@ -273,6 +273,22 @@ def _strip_html(html: str) -> str:
     return re.sub(r"<[^>]+>", " ", html or "").strip()
 
 
+def _item_type_tag(item: dict) -> str:
+    """The item's 'Item Type' tag value (from the shaped item's tags), or ''."""
+    tags = item.get("tags") or {}
+    if not isinstance(tags, dict):
+        return ""
+    val = tags.get("Item Type") or tags.get("item type") or tags.get("ItemType") or ""
+    if isinstance(val, list):
+        val = val[0] if val else ""
+    return str(val)
+
+
+def _is_learning_item(item: dict) -> bool:
+    """True only when the item is explicitly tagged Item Type: Learning."""
+    return "learning" in _item_type_tag(item).lower()
+
+
 def _summarise_item(item: dict) -> dict:
     """Convert a raw Learnosity item into a compact dict for the Claude prompt."""
     questions = item.get("questions") or []
@@ -652,10 +668,14 @@ def generate_ai_expert_review(
     if not force and cache_key in cache:
         return cache[cache_key]
 
-    # ── Fetch Learnosity item content ────────────────────────────────────────
+    # ── Fetch Learnosity item content for the sheet's item refs ──────────────
+    # Look up every item reference the teachers entered, then review ONLY the
+    # items explicitly tagged "Item Type: Learning" (per spec). Any practice /
+    # mini-quiz / exit item that slipped into the sheet's refs is dropped.
     item_refs     = [r.get("item_ref", "") for r in flow_a_results if r.get("item_ref")]
     items_raw     = _fetch_items_content(item_refs)
-    items_summary = [_summarise_item(i) for i in items_raw]
+    learning_raw  = [it for it in items_raw if _is_learning_item(it)]
+    items_summary = [_summarise_item(i) for i in learning_raw]
 
     # ── Build prompt inputs ──────────────────────────────────────────────────
     items_text   = _format_items_text(items_summary)
@@ -684,8 +704,10 @@ def generate_ai_expert_review(
 
     result["_generated_at"]     = time.time()
     result["_activity_ref"]     = activity_ref
-    result["_items_reviewed"]   = len(items_summary)
-    result["_learnosity_found"] = len(items_raw) > 0
+    result["_items_reviewed"]   = len(items_summary)          # learning items only
+    result["_items_fetched"]    = len(items_raw)
+    result["_items_nonlearning"] = len(items_raw) - len(learning_raw)
+    result["_learnosity_found"] = len(learning_raw) > 0
 
     # Merge-and-save under a lock so concurrent bulk generation can't drop
     # each other's entries (read-modify-write of one shared JSON file).

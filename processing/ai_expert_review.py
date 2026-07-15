@@ -422,18 +422,7 @@ def _format_doc_samples(ai_doc_reviews: dict) -> str:
     return "\n".join(lines)
 
 
-def _build_prompt(
-    lesson_meta: dict,
-    items_text: str,
-    teacher_text: str,
-    section_scores: dict,
-    doc_samples: str,
-    errors_text: str = "",
-) -> str:
-    lr = section_scores.get("learning",    {})
-    pr = section_scores.get("practice",    {})
-    et = section_scores.get("exit_ticket", {})
-
+def _build_prompt(lesson_meta: dict, items_text: str) -> str:
     reference = _load_review_reference()
     ref_block = (
         "\n## How we review — house style & the five checks (mirror this exactly)\n"
@@ -469,36 +458,22 @@ def _build_prompt(
         if gold else ""
     )
 
-    return f"""You are a Cuemath curriculum reviewer. Review the LEARNING ITEMS of this K-8 math lesson exactly the way our reference document does — the same five checks, the same warm, plain, specific voice (a helpful colleague, never a formal report). Name the item/screen and say what you'd actually change.
+    return f"""You are a Cuemath curriculum reviewer. Review the LEARNING ITEMS of this K-8 math lesson by reading the item CONTENT below and judging it against the framework and the gold standard. This is an INDEPENDENT content review: base every verdict on what the items themselves do (widgets, stimulus, visuals/simulations, hints, teacher-tips, sample answers, response design). Do NOT use or refer to teacher feedback — you are the reviewer. Use the same warm, plain, specific voice as the reference (a helpful colleague, never a formal report); name the item/screen and say what you'd actually change.
 {ref_block}{framework_block}{gold_block}
 ## The five checks (score EACH one)
-For every learning item we look at: **Flow**, **Visuals & simulations**, **Text load**, **Response boxes**, and **Accuracy** (guided examples & correctness). For each check decide "Working well" or "Suggested change" and give a short, concrete comment in the reference voice.
+For every learning item look at: **Flow**, **Visuals & simulations**, **Text load**, **Response boxes**, and **Accuracy** (guided examples & correctness). For each check decide "Working well" or "Suggested change" and give a short, concrete comment grounded in the item content.
 
 ## Lesson
 Grade {lesson_meta.get('grade','')} | {lesson_meta.get('chapter','')} | {lesson_meta.get('lesson','')}
 Activity ref: {lesson_meta.get('activity_ref','')}
 
-## Learnosity Item Content
+## Learnosity Item Content — THIS is what you review
 {items_text}
 
-## Teacher Field Scores (3 teachers, rule-based)
-Learning: {lr.get('score',0):.1f}/5 ({lr.get('rating','—')}) | Practice: {pr.get('score',0):.1f}/5 ({pr.get('rating','—')}) | Mini-Quiz: {et.get('score',0):.1f}/5 ({et.get('rating','—')})
-
-## Teacher Feedback — use EVERY point below
-This teacher feedback is your primary evidence. Use ALL of it — every teacher, every observation. Weave the recurring themes together and keep the specific, concrete points. Do not drop anyone's input.
-{teacher_text}
-
-## Errors Reported by Teachers (concrete, item-specific defects — treat as must-fix)
-These are precise problems teachers flagged (wrong answers, inconsistent boxes, etc.). Reflect the important ones in the relevant check and in "concerns".
-{errors_text}
-
-## Reference expert-review examples (for tone)
-{doc_samples}
-
 ---
-Now write the review of the LEARNING items across the five checks. Ground everything in the evidence above; where Learnosity item content isn't available, lean on the teacher feedback rather than inventing details.
+Review the learning items purely from their content above, against the framework's six dimensions and the gold-standard bar. Read the widgets in order and judge the flow, the scaffolding/guided-discovery, whether there are examples AND non-examples, the visuals/simulations, the text load, and the response design + accuracy. If a piece of content is missing, say so honestly — do NOT invent details, and do NOT fall back on teacher opinion.
 
-Also give a single **ai_score from 1.0 to 5.0** for the learning items overall — this is the AI component of the lesson's health (weighted 20%). Anchor it: 5.0 = all five checks working well with no real issues; ~4.0 = mostly working, one or two minor suggested changes; ~3.0 = several suggested changes or one genuine accuracy/flow problem; ≤2.0 = multiple genuine problems (wrong content, broken flow, heavy text). Be consistent with your per-check verdicts.
+Give a single **ai_score from 1.0 to 5.0** for the learning items overall (the AI component of health, weighted 20%). Anchor to the framework bands: 5.0 = all checks working well, true guided discovery, examples+non-examples, correct; ~4.0 = mostly working, one or two minor suggested changes; ~3.0 = several suggested changes, thin scaffolding, or few/no non-examples; ≤2.0 = passive tell-then-quiz, missing scaffolding, OR any genuine accuracy / text-vs-visual error (accuracy errors cap the item at Bad). Be consistent with your per-check verdicts.
 
 Respond ONLY with a valid JSON object — no markdown fences, no extra text:
 {{
@@ -511,12 +486,12 @@ Respond ONLY with a valid JSON object — no markdown fences, no extra text:
     "response_boxes": {{"status": "Working well" or "Suggested change", "comment": "..."}},
     "accuracy":       {{"status": "Working well" or "Suggested change", "comment": "..."}}
   }},
-  "overall_summary": "2-3 sentence plain-language take",
-  "strengths": ["what's genuinely working, in a teacher's voice — specific", "..."],
-  "concerns": ["what needs a fix, phrased like a teacher's suggested change — name the item/screen and the concrete fix", "..."],
+  "overall_summary": "2-3 sentence plain-language take on the learning items",
+  "strengths": ["what's genuinely working in the content — specific, names the screen", "..."],
+  "concerns": ["what needs a fix — name the item/screen and the concrete change", "..."],
   "recommendations": ["specific fix 1", "specific fix 2", "specific fix 3"],
   "confidence": "High" or "Medium" or "Low",
-  "confidence_note": "one line on why (e.g. based on teacher feedback only, Learnosity content not yet available)"
+  "confidence_note": "one line on why (e.g. full item content available; or some widget detail missing)"
 }}"""
 
 
@@ -641,26 +616,16 @@ def generate_ai_expert_review(
     if not activity_ref:
         return {}
 
-    # No real teacher feedback → no report. Guards against generating a review
-    # off blank/error-only rows. (The completeness gate should already prevent
-    # this, but keep the safety net here too.)
-    per_teacher = flow_b_result.get("_per_teacher_data", []) or []
-    has_item_feedback = any(
-        (t.get("summary") or "").strip() not in ("", "No detailed feedback provided.")
-        for r in flow_a_results
-        for t in (r.get("teacher_summaries") or {}).values()
-    )
-    if not per_teacher and not has_item_feedback:
-        return {}
+    # ── Fetch Learnosity item content for the sheet's item refs ──────────────
+    # Look up every item reference from the sheet, then review ONLY the items
+    # explicitly tagged "Item Type: Learning". This is an INDEPENDENT content
+    # review — no teacher feedback / ratings / error reports are used.
+    item_refs     = [r.get("item_ref", "") for r in flow_a_results if r.get("item_ref")]
+    item_refs     = list(dict.fromkeys([r for r in item_refs if r]))  # unique, ordered
 
-    error_reports = flow_b_result.get("error_reports", []) or []
-
-    # Stable cache key: ref + hash of teacher names + weighted score + error count
+    # Cache key is content-driven (the item refs), NOT teacher data.
     sig = hashlib.sha256(json.dumps({
-        "ref":     activity_ref,
-        "teachers": sorted(flow_b_result.get("teacher_names", [])),
-        "score":    flow_b_result.get("weighted_score", 0),
-        "errors":   len(error_reports),
+        "ref": activity_ref, "items": sorted(item_refs), "mode": "content-only-v1",
     }, sort_keys=True).encode()).hexdigest()[:16]
     cache_key = f"{activity_ref}|{sig}"
 
@@ -668,30 +633,26 @@ def generate_ai_expert_review(
     if not force and cache_key in cache:
         return cache[cache_key]
 
-    # ── Fetch Learnosity item content for the sheet's item refs ──────────────
-    # Look up every item reference the teachers entered, then review ONLY the
-    # items explicitly tagged "Item Type: Learning" (per spec). Any practice /
-    # mini-quiz / exit item that slipped into the sheet's refs is dropped.
-    item_refs     = [r.get("item_ref", "") for r in flow_a_results if r.get("item_ref")]
     items_raw     = _fetch_items_content(item_refs)
     learning_raw  = [it for it in items_raw if _is_learning_item(it)]
     items_summary = [_summarise_item(i) for i in learning_raw]
 
-    # ── Build prompt inputs ──────────────────────────────────────────────────
-    items_text   = _format_items_text(items_summary)
-    teacher_text = _format_teacher_text(per_teacher, flow_a_results)
-    errors_text  = _format_error_reports(error_reports)
-    doc_samples  = _format_doc_samples(ai_doc_reviews)
-    lesson_meta  = {
+    # Content review needs item content. Without it (e.g. gateway unreachable),
+    # there is nothing to review — return a clear, non-fatal note.
+    if not items_summary:
+        return {"error": "No Learnosity learning-item content available — cannot "
+                         "run a content review for this lesson.",
+                "_activity_ref": activity_ref}
+
+    items_text  = _format_items_text(items_summary)
+    lesson_meta = {
         "activity_ref": activity_ref,
         "grade":   flow_b_result.get("grade", ""),
         "chapter": flow_b_result.get("chapter", ""),
         "lesson":  flow_b_result.get("lesson", ""),
     }
 
-    prompt = _build_prompt(lesson_meta, items_text, teacher_text,
-                           flow_b_result.get("section_ratings", {}), doc_samples,
-                           errors_text)
+    prompt = _build_prompt(lesson_meta, items_text)
 
     result = _call_claude(prompt)
     if result.get("error"):

@@ -516,8 +516,10 @@ def _call_claude(prompt: str) -> dict:
 
     payload = json.dumps({
         "model":      LLM_MODEL,
-        "max_tokens": 2048,
-        # Disable adaptive thinking so the small output budget isn't consumed by
+        # 4096 (was 2048): the 5-check structured output + strengths/concerns/
+        # recommendations can exceed 2048 and truncate mid-JSON → parse error.
+        "max_tokens": 4096,
+        # Disable adaptive thinking so the output budget isn't consumed by
         # thinking tokens — this is a single-shot structured-JSON synthesis.
         "thinking":   {"type": "disabled"},
         "messages":   [{"role": "user", "content": prompt}],

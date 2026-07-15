@@ -27,8 +27,9 @@ def main() -> None:
     try:
         import requests
         from utils.auth import get_effective_auth_token, auto_auth_available
-        from config.settings import RAILWAY_BACKEND_URL
 
+        # Internal hostname failed (port 80 / IPv6); use the public studio URL.
+        RAILWAY_BACKEND_URL = "https://curriculum-studio-k-8-production.up.railway.app"
         print(f"SPROBE backend={RAILWAY_BACKEND_URL} auto_auth={auto_auth_available()}", flush=True)
         tok = get_effective_auth_token()
         print(f"SPROBE token={'yes(' + str(len(tok)) + ')' if tok else 'NO'}", flush=True)

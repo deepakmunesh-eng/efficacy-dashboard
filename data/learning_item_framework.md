@@ -5,6 +5,12 @@ Place Value, Factors, Integers) — each with the designer's justification for w
 strong, plus a "not-so-good" counter-example — give us the principles below. Use this to
 review every V3.1 **learning** item and label it **Good / Average / Bad**.
 
+> **This is an INDEPENDENT review of the item's own content** — the widgets, stimulus,
+> visuals/simulations, hints, teacher-tips, sample answers and response design as they
+> appear in Learnosity, judged against the gold standard. It does **not** use teacher
+> feedback, teacher ratings, or reported errors — the reviewer reads the item itself and
+> decides. (Teacher feedback lives in its own 40% health component, separately.)
+
 The gold standard rewards one thing above all: **guided discovery** — the student is led
 to *arrive at* the idea through small, scaffolded steps, not *told* the idea and then
 quizzed once.

@@ -23,6 +23,7 @@ import http.client
 import json
 import re
 import socket
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -40,6 +41,8 @@ from config.settings import (
 
 _CACHE_FILE  = CACHE_DIR / "ai_expert_reviews.json"
 _CACHE_TTL   = 86400 * 7          # 7 days — re-generate when teacher reviews change
+_CACHE_LOCK  = threading.Lock()   # guards the read-modify-write of the cache file
+                                  # so parallel bulk generation can't clobber it
 
 
 # ── Learning Item Review reference (house style + five-check rubric) ─────────────
@@ -682,6 +685,23 @@ def generate_ai_expert_review(
     result["_items_reviewed"]   = len(items_summary)
     result["_learnosity_found"] = len(items_raw) > 0
 
-    cache[cache_key] = result
-    _save_cache(cache)
+    # Merge-and-save under a lock so concurrent bulk generation can't drop
+    # each other's entries (read-modify-write of one shared JSON file).
+    with _CACHE_LOCK:
+        disk = _load_cache()
+        disk[cache_key] = result
+        _save_cache(disk)
     return result
+
+
+def get_cached_ai_reviews() -> dict:
+    """{activity_ref: review} for every cached, error-free AI review — used to
+    preload the UI so generated reviews show without re-running the LLM."""
+    out: dict = {}
+    for key, rev in _load_cache().items():
+        if not isinstance(rev, dict) or rev.get("error"):
+            continue
+        ref = rev.get("_activity_ref") or key.split("|", 1)[0]
+        if ref:
+            out[ref] = rev
+    return out

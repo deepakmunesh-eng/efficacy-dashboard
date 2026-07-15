@@ -85,8 +85,15 @@ def generate_ai_for_lesson(activity_ref: str) -> dict:
 def main() -> None:
     if "results" not in st.session_state:
         st.session_state["results"] = load_all_results()
+    if "ai_reviews" not in st.session_state:
+        # Preload any AI reviews already generated (e.g. by the bulk run) so the
+        # detail view shows them without re-calling the LLM.
+        from processing.ai_expert_review import get_cached_ai_reviews
+        try:
+            st.session_state["ai_reviews"] = get_cached_ai_reviews()
+        except Exception:  # noqa: BLE001
+            st.session_state["ai_reviews"] = {}
     st.session_state.setdefault("nav", {})
-    st.session_state.setdefault("ai_reviews", {})
     st.session_state.setdefault("view_mode", "🩺 Health")
 
     def nav(home=False, grade=None, chapter=None, lesson=None):

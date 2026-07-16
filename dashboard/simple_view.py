@@ -241,6 +241,20 @@ def _render_lesson_body(result: dict, on_generate_ai) -> None:
                             f"{float(item.get('score') or 0):.1f}/5 "
                             f"· {item.get('teacher_count',0)} teacher(s)")
 
+        # ── Teacher divergence — where reviewers disagree (spread > 1.5) ──────
+        divs = [(item.get("item_ref", ""), d)
+                for item in fa for d in (item.get("divergences") or [])]
+        st.markdown("**⚠️ Teacher divergence**")
+        if divs:
+            st.caption("Learning items where reviewers differ by more than 1.5 points — "
+                       "worth a closer look:")
+            for item_ref, d in divs:
+                st.markdown(
+                    f"- **{item_ref}** · _{d.get('dimension','')}_ — "
+                    f"spread {d.get('spread','?')} pts  ·  {d.get('teacher_positions','')}")
+        else:
+            st.caption("No notable divergence — reviewers broadly agree on every item.")
+
     # 2 ── Class review
     with st.expander(_comp_header("classroom", "👥", health), expanded=False):
         cr = result.get("section_ratings", {}).get("classroom_review", {})

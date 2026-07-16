@@ -135,9 +135,8 @@ def main() -> None:
         complete = [r for r in results.values() if r.get("status") == "Complete"]
         st.caption(f"{len(complete)} complete · {len(results) - len(complete)} pending")
 
-        st.caption("✨ AI review is being piloted on one lesson "
-                   "(G4 · Determine Median and Range). Rollout to all lessons is "
-                   "pending approval.")
+        st.caption("✨ AI review (per learning item, content-only) is generated "
+                   "for all complete lessons.")
 
     # ── Main area (full width) ────────────────────────────────────────────────
     title = "🚩 Errors Reported" if mode == "errors" else "Curriculum Efficacy Dashboard"

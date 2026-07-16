@@ -251,8 +251,15 @@ def _render_lesson_body(result: dict, on_generate_ai) -> None:
 
     # 3 ── Exit-ticket data
     with st.expander(_comp_header("exit_data", "📝", health), expanded=False):
-        st.info("Exit-ticket student data not uploaded yet. Once provided it will be "
-                "aggregated to a 1–5 score and contribute 10% of health.")
+        ed = result.get("exit_data")
+        if ed:
+            st.markdown(f"**{ed.get('pct', 0):.0f}%** exit-ticket performance  →  "
+                        f"**{ed.get('score_5', 0):.1f}/5**")
+            st.caption(f"Mean of (avg-score ÷ max-score) × 100 across "
+                       f"{ed.get('n_items', 0)} exit item(s) / {ed.get('n_widgets', 0)} widget(s), "
+                       "then scaled linearly to 1–5 (100% = 5.0).")
+        else:
+            st.info("No exit-ticket data matched this lesson.")
 
     # 4 ── AI review of learning items
     with st.expander(_comp_header("ai", "✨", health), expanded=False):

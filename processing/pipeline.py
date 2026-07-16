@@ -11,6 +11,7 @@ import concurrent.futures
 from data.sheets_reader import fetch_all_lesson_reviews, fetch_error_reports
 from data.classroom_reader import fetch_classroom_reviews, match_classroom_to_lessons
 from data.lookup_reader import fetch_lesson_lookup
+from data.exit_ticket_reader import fetch_exit_ticket_scores
 from data.learnosity_client import _fetch_from_supabase, _fallback
 from processing.flow_a import run_flow_a
 from processing.flow_b import run_flow_b, _BACKFILL_FIELDS
@@ -28,9 +29,9 @@ from utils.cache import (
 from utils.helpers import normalize_name
 
 # Bump when scoring/gating logic changes so cached results recompute on refresh.
-# v12: 4-component health (Teacher40/Class30/ExitData10/AI20), errors no longer
-# penalise health, AI review emits a 1-5 score folded into health.
-_LOGIC_VERSION = "v12"
+# v13: exit-ticket student data now feeds the 10% component (exit_ticket_reader),
+# matched to lessons by learnosity_activity_ref == Activity Reference ID.
+_LOGIC_VERSION = "v13"
 
 
 def run_pipeline(force: bool = False, progress=None, warn=None) -> dict:
@@ -46,15 +47,19 @@ def run_pipeline(force: bool = False, progress=None, warn=None) -> dict:
             return default if not isinstance(default, Exception) else exc
 
     _p(5, "Fetching data sources in parallel…")
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
         f_sheets    = pool.submit(_try, fetch_all_lesson_reviews, RuntimeError("sheets"))
         f_errors    = pool.submit(_try, fetch_error_reports, [])
         f_classroom = pool.submit(_try, fetch_classroom_reviews, [])
         f_lookup    = pool.submit(_try, fetch_lesson_lookup, {})
+        f_exit      = pool.submit(_try, fetch_exit_ticket_scores, {})
         raw_rows          = f_sheets.result()
         error_records     = f_errors.result()
         classroom_records = f_classroom.result()
         lesson_lookup     = f_lookup.result()
+        exit_scores       = f_exit.result()
+    if not isinstance(exit_scores, dict):
+        exit_scores = {}
 
     if isinstance(raw_rows, Exception) or not isinstance(raw_rows, list):
         _w(f"Failed to read Google Sheets: {raw_rows}")
@@ -127,10 +132,12 @@ def run_pipeline(force: bool = False, progress=None, warn=None) -> dict:
             }
             continue
 
-        ai_score = get_cached_ai_score(activity_ref)
+        ai_score  = get_cached_ai_score(activity_ref)
+        exit_info = exit_scores.get(activity_ref)
+        exit_score = (exit_info or {}).get("score_5")
         combined_hash = compute_hash({"rows": lesson_rows, "classroom": classroom,
                                       "errors": lesson_errors, "ai": ai_score,
-                                      "logic": _LOGIC_VERSION})
+                                      "exit": exit_score, "logic": _LOGIC_VERSION})
         if not force and stored_hashes.get(activity_ref) == combined_hash:
             cached = stored_results.get(activity_ref)
             if cached:
@@ -152,11 +159,12 @@ def run_pipeline(force: bool = False, progress=None, warn=None) -> dict:
         try:
             result = run_flow_b(activity_ref, lesson_rows, flow_a_results, classroom,
                                 learnosity_content, error_reports=lesson_errors,
-                                ai_score=ai_score)
+                                ai_score=ai_score, exit_data_score=exit_score)
         except Exception as exc:  # noqa: BLE001
             _w(f"Flow B failed for {activity_ref}: {exc}")
             result = {"activity_ref": activity_ref, "final_rating": "Average", "error": str(exc)}
 
+        result["exit_data"]      = exit_info            # {pct, score_5, n_items, n_widgets} or None
         result["status"]         = "Complete"
         result["review_date"]    = lesson_rows[0].get("review_date", "")
         result["error_reports"]  = lesson_errors

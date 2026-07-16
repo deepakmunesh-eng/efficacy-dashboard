@@ -25,6 +25,17 @@ CLASSROOM_ADMIN_URL = os.getenv(
 )
 CLASSROOM_ADMIN_KEY = os.getenv("CLASSROOM_ADMIN_KEY", "Cu3L3@rn")
 
+# ── Exit-ticket data sheet (student exit-ticket performance) ──────────────────
+# Per-widget avg-score / max-score with a learnosity_activity_ref that matches
+# the review sheet's Activity Reference ID. Exit score per lesson = mean over its
+# items of (avg-score/max-score)*100, then linearly to 1-5 (×5/100) for health.
+EXIT_TICKET_SHEET_ID = os.getenv(
+    "EXIT_TICKET_SHEET_ID", "1fKhGSfYIfFO14-9jIqwJ6PPxaBZJo7vQ1cwi0HkaSik"
+)
+EXIT_TICKET_XLSX_URL = (
+    f"https://docs.google.com/spreadsheets/d/{EXIT_TICKET_SHEET_ID}/export?format=xlsx"
+)
+
 # ── Lesson lookup sheet (grade / chapter / lesson backfill) ───────────────────
 LESSON_LOOKUP_SHEET_ID = os.getenv(
     "LESSON_LOOKUP_SHEET_ID", "1zAjDQhJ4dUNWBaNYGtivLFak5BKfUFQb2dB8MHjouT4"

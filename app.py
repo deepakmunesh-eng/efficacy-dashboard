@@ -68,10 +68,11 @@ def generate_ai_for_lesson(activity_ref: str) -> dict:
     ai_score = ai.get("ai_score") if not ai.get("error") else None
     if ai_score is not None:
         classroom = result.get("section_ratings", {}).get("classroom_review", {}).get("score") or None
+        exit_score = (result.get("exit_data") or {}).get("score_5")
         health = compute_health(
             teacher=result.get("teacher_score") or None,
             classroom=classroom,
-            exit_data=None,
+            exit_data=exit_score,
             ai=ai_score,
         )
         result["health"] = health

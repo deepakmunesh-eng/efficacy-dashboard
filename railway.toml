@@ -2,7 +2,7 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "python _classroom_cov.py || true; streamlit run app.py --server.port $PORT --server.address 0.0.0.0"
+startCommand = "streamlit run app.py --server.port $PORT --server.address 0.0.0.0"
 healthcheckPath = "/_stcore/health"
 healthcheckTimeout = 120
 restartPolicyType = "on_failure"

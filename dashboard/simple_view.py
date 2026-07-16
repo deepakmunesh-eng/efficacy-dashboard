@@ -197,6 +197,16 @@ def _render_lesson_list(tree, grade, chapter, nav, mode) -> None:
 
 # ── Lesson detail ────────────────────────────────────────────────────────────
 
+def _comp_header(key: str, emoji: str, health: dict) -> str:
+    """Expander title for a health component — shows its score + weight, or 'n/a'."""
+    comps = health.get("components", {})
+    weights = health.get("weights", {})
+    name = HEALTH_LABELS[key]
+    if key in comps:
+        return f"{emoji}  {name}  —  {comps[key]:.1f}/5   ·   {weights[key]}% of health"
+    return f"{emoji}  {name}  —  not available   ·   {HEALTH_WEIGHTS[key]}% redistributed"
+
+
 def _render_lesson_body(result: dict, on_generate_ai) -> None:
     st.markdown(f"### {result.get('lesson') or result.get('activity_ref','')}")
     st.caption(f"`{result.get('activity_ref','')}`")
@@ -207,94 +217,101 @@ def _render_lesson_body(result: dict, on_generate_ai) -> None:
 
     score = float(result.get("weighted_score") or 0)
     rating = result.get("final_rating", "Pending")
-    st.markdown(f"## {_rag(rating)}  ·  {score:.1f}/5")
-    st.caption(result.get("final_rationale", ""))
-
     health = result.get("health", {})
-    comps = health.get("components", {})
-    weights = health.get("weights", {})
-    st.markdown("#### Health components")
-    cols = st.columns(4)
-    for i, key in enumerate(["teacher", "classroom", "exit_data", "ai"]):
-        with cols[i]:
-            if key in comps:
-                st.metric(HEALTH_LABELS[key], f"{comps[key]:.1f}/5",
-                          f"{weights[key]}% wt", delta_color="off")
-            else:
-                st.metric(HEALTH_LABELS[key], "—",
-                          f"{HEALTH_WEIGHTS[key]}% n/a", delta_color="off")
 
-    st.markdown("#### Teacher Sheet sections")
-    parts = result.get("teacher_parts", {})
-    sc = st.columns(4)
-    for i, (key, label) in enumerate([("learning", "Learning"), ("practice", "Practice"),
-                                      ("mini_quiz", "Mini-Quiz"), ("overall", "Overall")]):
-        with sc[i]:
-            v = parts.get(key, 0)
-            st.metric(label, f"{v:.1f}/5" if v else "—")
+    # ── Headline health only; the four components are collapsed below ─────────
+    st.markdown(f"## Health: {_rag(rating)}  ·  {score:.1f}/5")
+    st.caption("Weighted from the components below (missing ones are redistributed). "
+               "Click a component to see how it's rated.")
 
-    fa = [r for r in result.get("flow_a_results", []) if r.get("rating") != "Pending"]
-    if fa:
-        with st.expander(f"Learning items ({len(fa)})", expanded=False):
+    # 1 ── Teacher Sheet review (covers Learning / Practice / Mini-Quiz / Overall)
+    with st.expander(_comp_header("teacher", "🧑‍🏫", health), expanded=False):
+        parts = result.get("teacher_parts", {})
+        cols = st.columns(4)
+        for i, (k, label) in enumerate([("learning", "Learning"), ("practice", "Practice"),
+                                        ("mini_quiz", "Mini-Quiz"), ("overall", "Overall")]):
+            with cols[i]:
+                v = parts.get(k, 0)
+                st.metric(label, f"{v:.1f}/5" if v else "—")
+        fa = [r for r in result.get("flow_a_results", []) if r.get("rating") != "Pending"]
+        if fa:
+            st.caption("Teacher item-level ratings:")
             for item in fa:
-                st.markdown(f"**{item.get('item_ref','')}** — {_rag(item.get('rating',''))} "
-                            f"{float(item.get('score') or 0):.1f}/5 · {item.get('teacher_count',0)} teacher(s)")
-                st.caption(item.get("rationale", ""))
+                st.markdown(f"- **{item.get('item_ref','')}** — {_rag(item.get('rating',''))} "
+                            f"{float(item.get('score') or 0):.1f}/5 "
+                            f"· {item.get('teacher_count',0)} teacher(s)")
 
-    st.markdown("#### AI review of learning items")
-    _render_ai_review(result, on_generate_ai)
+    # 2 ── Class review
+    with st.expander(_comp_header("classroom", "👥", health), expanded=False):
+        cr = result.get("section_ratings", {}).get("classroom_review", {})
+        if cr.get("score"):
+            st.write(cr.get("rationale", ""))
+        else:
+            st.caption("No classroom review matched this lesson yet.")
+
+    # 3 ── Exit-ticket data
+    with st.expander(_comp_header("exit_data", "📝", health), expanded=False):
+        st.info("Exit-ticket student data not uploaded yet. Once provided it will be "
+                "aggregated to a 1–5 score and contribute 10% of health.")
+
+    # 4 ── AI review of learning items
+    with st.expander(_comp_header("ai", "✨", health), expanded=False):
+        _render_ai_review(result, on_generate_ai)
 
 
 def _render_ai_review(result: dict, on_generate_ai) -> None:
-    from config.settings import AI_REVIEW_ENABLED
-
     ref = result.get("activity_ref", "")
     ai = st.session_state.get("ai_reviews", {}).get(ref)
 
-    if not AI_REVIEW_ENABLED and ai is None:
-        st.info(
-            "🔒 **AI review — awaiting Learnosity access.**  Once enabled, it scores the "
-            "learning items against the gold-standard reference across the five checks "
-            "(Flow, Visuals & simulations, Text load, Response boxes, Accuracy) and "
-            "contributes **20%** of health. Until then its weight is redistributed."
-        )
-        return
-
     if ai is None:
-        st.caption("Scores learning items across the five checks; contributes 20% of health.")
-        if st.button("✨ Generate AI review", key=f"gen_ai_{ref}"):
-            with st.spinner("Generating AI review…"):
-                on_generate_ai(ref)
-            st.rerun()
+        st.caption("AI review is being piloted on selected lessons — not enabled here yet.")
         return
-
     if ai.get("error"):
-        st.error(f"AI review failed: {ai['error']}")
-        if st.button("Retry", key=f"retry_ai_{ref}"):
-            st.session_state.get("ai_reviews", {}).pop(ref, None); st.rerun()
+        st.caption("AI review unavailable for this lesson (no item content).")
         return
 
     ai_score = ai.get("ai_score")
     if ai_score is not None:
-        st.markdown(f"**AI score: {float(ai_score):.1f}/5** · {ai.get('final_rating','')}")
+        st.markdown(f"**AI score: {float(ai_score):.1f}/5** · {ai.get('final_rating','')} "
+                    "— reviewed per learning item against the gold-standard framework")
     if ai.get("confidence_note"):
         st.caption(ai["confidence_note"])
-    if ai.get("overall_summary"):
-        st.write(ai["overall_summary"])
-    for key, label in _CHECK_LABELS.items():
-        c = (ai.get("checks") or {}).get(key)
-        if not isinstance(c, dict):
-            continue
-        icon = "✅" if "well" in c.get("status", "").lower() else "🔧"
-        st.markdown(f"{icon} **{label}** — {c.get('status','')}")
-        if c.get("comment"):
-            st.caption(c["comment"])
-    if ai.get("concerns"):
-        st.markdown("**Needs curriculum intervention:**")
-        for x in ai["concerns"]:
+
+    items = ai.get("items") or []
+    if items:
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            sc = it.get("score")
+            sc_txt = f"{float(sc):.1f}/5" if isinstance(sc, (int, float)) else "—"
+            emoji = _RAG_EMOJI.get(_rating_from(sc), "⚪")
+            st.markdown(f"**{emoji} {it.get('reference','item')} — {sc_txt}**")
+            checks = it.get("checks") or {}
+            chips = [f"{lbl} {'✅' if str(checks.get(k,'')).lower().startswith('ok') else '🔧'}"
+                     for k, lbl in [("flow", "Flow"), ("visuals", "Visuals"),
+                                    ("text_load", "Text"), ("response_boxes", "Boxes"),
+                                    ("accuracy", "Accuracy")] if k in checks]
+            if chips:
+                st.caption("  ·  ".join(chips))
+            if it.get("verdict"):
+                st.write(it["verdict"])
+            for fx in (it.get("fixes") or []):
+                st.markdown(f"- {fx}")
+            st.divider()
+    else:
+        # Fallback for the older combined format.
+        if ai.get("overall_summary"):
+            st.write(ai["overall_summary"])
+        for x in (ai.get("concerns") or []):
             st.markdown(f"- {x}")
-    if st.button("↻ Regenerate", key=f"regen_ai_{ref}"):
-        st.session_state.get("ai_reviews", {}).pop(ref, None); st.rerun()
+
+
+def _rating_from(score) -> str:
+    try:
+        s = float(score)
+    except (TypeError, ValueError):
+        return "N/A"
+    return "Good" if s >= 4.0 else "Average" if s >= 2.5 else "Bad"
 
 
 def _render_errors(result: dict, heading: bool = True) -> None:

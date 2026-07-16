@@ -134,20 +134,9 @@ def main() -> None:
         complete = [r for r in results.values() if r.get("status") == "Complete"]
         st.caption(f"{len(complete)} complete · {len(results) - len(complete)} pending")
 
-        from config.settings import AI_REVIEW_ENABLED
-        if AI_REVIEW_ENABLED:
-            if st.button("✨ Generate all AI reviews", use_container_width=True):
-                todo = [r["activity_ref"] for r in complete
-                        if r["activity_ref"] not in st.session_state.get("ai_reviews", {})]
-                prog = st.progress(0, text=f"0/{len(todo)}")
-                for i, ref in enumerate(todo):
-                    generate_ai_for_lesson(ref)
-                    prog.progress((i + 1) / max(len(todo), 1), text=f"{i+1}/{len(todo)}")
-                prog.empty()
-                st.rerun()
-        else:
-            st.caption("🔒 AI review (20%) on hold until Learnosity access "
-                       "(`AI_REVIEW_ENABLED=1`).")
+        st.caption("✨ AI review is being piloted on one lesson "
+                   "(G4 · Determine Median and Range). Rollout to all lessons is "
+                   "pending approval.")
 
     # ── Main area (full width) ────────────────────────────────────────────────
     title = "🚩 Errors Reported" if mode == "errors" else "Curriculum Efficacy Dashboard"

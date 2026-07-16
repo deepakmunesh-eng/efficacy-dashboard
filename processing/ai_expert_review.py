@@ -38,6 +38,7 @@ from config.settings import (
     LLM_API_KEY,
     LLM_MODEL,
 )
+from processing.scoring import rag_from_score
 
 _CACHE_FILE  = CACHE_DIR / "ai_expert_reviews.json"
 _CACHE_TTL   = 86400 * 7          # 7 days — re-generate when teacher reviews change
@@ -508,9 +509,6 @@ def _build_prompt(lesson_meta: dict, items_text: str) -> str:
 
     return f"""You are a Cuemath curriculum reviewer. Review the LEARNING ITEMS of this K-8 math lesson by reading the item CONTENT below and judging it against the framework and the gold standard. This is an INDEPENDENT content review: base every verdict on what the items themselves do (widgets, stimulus, visuals/simulations, hints, teacher-tips, sample answers, response design). Do NOT use or refer to teacher feedback — you are the reviewer. Use the same warm, plain, specific voice as the reference (a helpful colleague, never a formal report); name the item/screen and say what you'd actually change.
 {ref_block}{framework_block}{gold_block}
-## The five checks (score EACH one)
-For every learning item look at: **Flow**, **Visuals & simulations**, **Text load**, **Response boxes**, and **Accuracy** (guided examples & correctness). For each check decide "Working well" or "Suggested change" and give a short, concrete comment grounded in the item content.
-
 ## Lesson
 Grade {lesson_meta.get('grade','')} | {lesson_meta.get('chapter','')} | {lesson_meta.get('lesson','')}
 Activity ref: {lesson_meta.get('activity_ref','')}
@@ -519,27 +517,25 @@ Activity ref: {lesson_meta.get('activity_ref','')}
 {items_text}
 
 ---
-Review the learning items purely from their content above, against the framework's six dimensions and the gold-standard bar. Read the widgets in order and judge the flow, the scaffolding/guided-discovery, whether there are examples AND non-examples, the visuals/simulations, the text load, and the response design + accuracy. If a piece of content is missing, say so honestly — do NOT invent details, and do NOT fall back on teacher opinion.
+Review **EACH learning item SEPARATELY** (one entry per item reference above). Read that item's widgets in order and judge it against the framework's five checks — Flow, Visuals & simulations, Text load, Response boxes, Accuracy — plus guided-discovery, examples/non-examples, and the gold-standard bar.
 
-Give a single **ai_score from 1.0 to 5.0** for the learning items overall (the AI component of health, weighted 20%). Anchor to the framework bands: 5.0 = all checks working well, true guided discovery, examples+non-examples, correct; ~4.0 = mostly working, one or two minor suggested changes; ~3.0 = several suggested changes, thin scaffolding, or few/no non-examples; ≤2.0 = passive tell-then-quiz, missing scaffolding, OR any genuine accuracy / text-vs-visual error (accuracy errors cap the item at Bad). Be consistent with your per-check verdicts.
+Be **CRISP**: for each check give a one-word verdict ("ok" or "change"); one short verdict sentence for the item; and at most 2–3 short concrete fixes (only where a change is needed — omit fixes if the item is solid). No long paragraphs. If content (e.g. an image) is missing, note it briefly; do not invent details or use teacher opinion.
+
+Score each item 1.0–5.0 against the framework bands: 5 = all checks ok, guided discovery, examples+non-examples, correct; ~4 = one/two minor changes; ~3 = several changes or thin scaffolding / no non-examples; ≤2 = passive tell-then-quiz, missing scaffolding, OR any genuine accuracy / text-vs-visual error (accuracy error caps the item at Bad).
 
 Respond ONLY with a valid JSON object — no markdown fences, no extra text:
 {{
-  "ai_score": 4.2,
-  "final_rating": "Good" or "Average" or "Bad",
-  "checks": {{
-    "flow":           {{"status": "Working well" or "Suggested change", "comment": "..."}},
-    "visuals":        {{"status": "Working well" or "Suggested change", "comment": "..."}},
-    "text_load":      {{"status": "Working well" or "Suggested change", "comment": "..."}},
-    "response_boxes": {{"status": "Working well" or "Suggested change", "comment": "..."}},
-    "accuracy":       {{"status": "Working well" or "Suggested change", "comment": "..."}}
-  }},
-  "overall_summary": "2-3 sentence plain-language take on the learning items",
-  "strengths": ["what's genuinely working in the content — specific, names the screen", "..."],
-  "concerns": ["what needs a fix — name the item/screen and the concrete change", "..."],
-  "recommendations": ["specific fix 1", "specific fix 2", "specific fix 3"],
+  "items": [
+    {{
+      "reference": "the item reference exactly as shown above",
+      "score": 3.0,
+      "checks": {{"flow": "ok", "visuals": "ok", "text_load": "change", "response_boxes": "change", "accuracy": "ok"}},
+      "verdict": "one crisp sentence — what's strong, or the single most important fix",
+      "fixes": ["short concrete fix", "short concrete fix"]
+    }}
+  ],
   "confidence": "High" or "Medium" or "Low",
-  "confidence_note": "one line on why (e.g. full item content available; or some widget detail missing)"
+  "confidence_note": "one short line (e.g. full widget text available; plot images not inspectable)"
 }}"""
 
 
@@ -707,16 +703,25 @@ def generate_ai_expert_review(
         print(f"[ai_expert_review] {activity_ref}: {result['error']}")
         return result
 
-    # Normalise the numeric AI score (1-5). If the model omitted it, derive it
-    # from the five per-check verdicts (each "Suggested change" costs 0.4 off 5).
-    result["ai_score"] = _normalise_ai_score(result)
+    # Aggregate the per-item scores into the lesson AI score (mean).
+    per_item = result.get("items") or []
+    item_scores = []
+    for it in per_item:
+        if isinstance(it, dict):
+            try:
+                item_scores.append(float(it["score"]))
+            except (KeyError, TypeError, ValueError):
+                pass
+    ai = round(sum(item_scores) / len(item_scores), 1) if item_scores else _normalise_ai_score(result)
+    result["ai_score"]     = max(1.0, min(5.0, ai))
+    result["final_rating"] = rag_from_score(result["ai_score"])
 
-    result["_generated_at"]     = time.time()
-    result["_activity_ref"]     = activity_ref
-    result["_items_reviewed"]   = len(items_summary)          # learning items only
-    result["_items_fetched"]    = len(items_raw)
+    result["_generated_at"]      = time.time()
+    result["_activity_ref"]      = activity_ref
+    result["_items_reviewed"]    = len(per_item) or len(items_summary)
+    result["_items_fetched"]     = len(items_raw)
     result["_items_nonlearning"] = len(items_raw) - len(learning_raw)
-    result["_learnosity_found"] = len(learning_raw) > 0
+    result["_learnosity_found"]  = len(learning_raw) > 0
 
     # Merge-and-save under a lock so concurrent bulk generation can't drop
     # each other's entries (read-modify-write of one shared JSON file).

@@ -18,9 +18,15 @@ def main() -> None:
         except Exception:  # noqa: BLE001
             ai_doc = {}
 
+        # Recompute first so Pending lessons get Flow A (their learning item refs),
+        # then review EVERY lesson that has learning item refs — Complete or Pending.
+        run_pipeline(force=False, progress=lambda p, t="": None,
+                     warn=lambda m: print(f"BULKAI warn: {m}", flush=True))
         results = all_results()
-        comp = [r for r in results.values() if r.get("status") == "Complete"]
-        print(f"BULKAI: start — {len(comp)} complete lessons", flush=True)
+        comp = [r for r in results.values()
+                if any((x.get("item_ref") or "").strip() for x in r.get("flow_a_results", []))]
+        print(f"BULKAI: start — {len(comp)} lessons with learning items "
+              f"(of {len(results)} total)", flush=True)
 
         def _gen(r):
             ref = r.get("activity_ref", "")

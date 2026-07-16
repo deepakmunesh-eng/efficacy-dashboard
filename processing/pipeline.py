@@ -31,7 +31,9 @@ from utils.helpers import normalize_name
 # Bump when scoring/gating logic changes so cached results recompute on refresh.
 # v13: exit-ticket student data now feeds the 10% component (exit_ticket_reader),
 # matched to lessons by learnosity_activity_ref == Activity Reference ID.
-_LOGIC_VERSION = "v13"
+# v14: Pending lessons also run Flow A (expose learning item refs) so the
+# content-based AI review can cover them; health stays Pending.
+_LOGIC_VERSION = "v14"
 
 
 def run_pipeline(force: bool = False, progress=None, warn=None) -> dict:
@@ -118,15 +120,27 @@ def run_pipeline(force: bool = False, progress=None, warn=None) -> dict:
         c = lesson_rows[0].get("chapter", "") if lesson_rows else ""
         l = lesson_rows[0].get("lesson", "") if lesson_rows else ""
 
-        # Completeness gate — Pending until 3 reviewers submitted real feedback.
+        # Completeness gate — health is Pending until 3 reviewers submitted real
+        # feedback. But the AI review is content-based (independent of teachers),
+        # so we still run Flow A to expose the lesson's learning item refs — that
+        # lets the AI review cover Pending lessons too. Health stays Pending.
         if len(completed_reviews) < 3:
+            learnosity_content = learnosity_cache.get(
+                activity_ref,
+                {"activity_ref": activity_ref, "source": "unavailable", "items": []},
+            )
+            try:
+                pend_flow_a = run_flow_a(activity_ref, lesson_rows, learnosity_content,
+                                         error_reports=lesson_errors)
+            except Exception:  # noqa: BLE001
+                pend_flow_a = []
             results[activity_ref] = {
                 "activity_ref": activity_ref, "grade": g, "chapter": c, "lesson": l,
                 "status": "Pending", "final_rating": "Pending",
                 "teacher_names": completed_reviews, "weighted_score": 0.0,
                 "health": {"score": 0.0, "rating": "Pending", "components": {}, "weights": {}},
                 "one_line_summary": f"Awaiting {3 - len(completed_reviews)} more review(s).",
-                "section_ratings": {}, "flow_a_results": [],
+                "section_ratings": {}, "flow_a_results": pend_flow_a,
                 "error_reports": lesson_errors,
                 "detected_errors": collect_lesson_errors(activity_ref, g, c, l, lesson_rows, lesson_errors),
             }

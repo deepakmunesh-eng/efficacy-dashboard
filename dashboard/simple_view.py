@@ -212,7 +212,11 @@ def _render_lesson_body(result: dict, on_generate_ai) -> None:
     st.caption(f"`{result.get('activity_ref','')}`")
 
     if result.get("status") != "Complete":
-        st.warning(result.get("one_line_summary", "This lesson is still pending review."))
+        st.warning(result.get("one_line_summary", "This lesson is still pending review.")
+                   + "  Health is on hold until 3 teacher reviews — but the AI review "
+                     "of the learning items (content-based) is shown below.")
+        with st.expander("✨  AI review of learning items", expanded=True):
+            _render_ai_review(result, on_generate_ai)
         return
 
     score = float(result.get("weighted_score") or 0)

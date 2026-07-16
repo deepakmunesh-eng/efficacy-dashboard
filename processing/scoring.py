@@ -104,24 +104,25 @@ def has_negative_feedback(*texts: str) -> bool:
     return classify_error(*texts)[0] > 0
 
 
-# Classroom coded answers (q1–q5, q7–q9) → 0–5 score. q11 is a 1–5 number.
+# Classroom coded answers (q1–q5, q7–q9) → 1–5 score. q11 is a 1–5 number.
+# Values follow the rubric in "classroom ratings.txt" exactly.
 _CLASSROOM_CODE_SCORES = {
-    # q1 — students understood
-    "understood_all": 5.0, "needed_support": 3.0,
-    # q2 — engagement (learning)
-    "highly_engaging": 5.0, "engaging_in_parts": 4.0, "not_engaging": 2.0,
-    # q3 — examples / guided practice
-    "adequate": 5.0, "more_than_required": 4.0, "less_than_required": 3.0,
+    # q1 — student understood the learning section
+    "understood_all": 5.0, "needed_support": 3.0, "not_understood": 2.0,
+    # q2 — how the student experienced the learning section
+    "highly_engaging": 5.0, "engaging_in_parts": 3.0, "not_engaging": 2.0,
+    # q3 — guided examples & tasks
+    "more_than_required": 5.0, "adequate": 4.0, "less_than_required": 3.0,
     # q4 — language / readability
     "appropriate": 5.0, "text_heavy_some": 3.0, "very_text_heavy": 2.0,
-    # q5 — consistent build-up
-    "yes_consistently": 5.0, "yes_some_points": 4.0, "limited_no": 3.0,
+    # q5 — discussion opportunities
+    "yes_consistently": 5.0, "yes_some_points": 3.0, "limited_no": 2.0,
     # q7 — practice difficulty
-    "right_mix": 5.0, "too_easy": 3.0, "too_difficult": 3.0,
+    "right_mix": 5.0, "too_easy": 3.0, "too_difficult": 2.0,
     # q8 — practice engagement
-    "extremely_engaging": 5.0, "somewhat_engaging": 4.0, "not_engaging_practice": 2.0,
+    "extremely_engaging": 5.0, "somewhat_engaging": 3.0, "not_engaging_practice": 2.0,
     # q9 — practice variety
-    "good_mix": 5.0, "some_variety": 4.0, "very_little_variety": 3.0,
+    "good_mix": 5.0, "some_variety": 3.0, "very_little_variety": 2.0,
     # "other" / blank → skipped (not scored)
 }
 

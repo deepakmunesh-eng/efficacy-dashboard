@@ -153,7 +153,7 @@ def _render_chapter_list(tree, grade, nav, mode) -> None:
         st.markdown(f"### {_grade_label(grade)} · 🚩 {total_err} error(s)")
     else:
         roll = rollup([_lesson_score(r) for r in all_lessons if r.get("status") == "Complete"])
-        chip = (f"{_RAG_EMOJI.get(roll['rating'], '⚪')} {roll['score']:.1f}/5 · {roll['rating']}"
+        chip = (f"{_RAG_EMOJI.get(roll['rating'], '⚪')} {roll['score']:.1f} · {roll['rating']}"
                 if roll["n"] else "⚪ Pending")
         st.markdown(f"### {_grade_label(grade)} · {chip}")
     n_comp = sum(1 for r in all_lessons if r.get("status") == "Complete")
@@ -203,7 +203,7 @@ def _comp_header(key: str, emoji: str, health: dict) -> str:
     weights = health.get("weights", {})
     name = HEALTH_LABELS[key]
     if key in comps:
-        return f"{emoji}  {name}  —  {comps[key]:.1f}/5   ·   {weights[key]}% of health"
+        return f"{emoji}  {name}  —  {comps[key]:.1f}   ·   {weights[key]}% of health"
     return f"{emoji}  {name}  —  not available   ·   {HEALTH_WEIGHTS[key]}% redistributed"
 
 
@@ -224,7 +224,7 @@ def _render_lesson_body(result: dict, on_generate_ai) -> None:
     health = result.get("health", {})
 
     # ── Headline health only; the four components are collapsed below ─────────
-    st.markdown(f"## Health: {_rag(rating)}  ·  {score:.1f}/5")
+    st.markdown(f"## Health: {_rag(rating)}  ·  {score:.1f}")
     st.caption("Weighted from the components below (missing ones are redistributed). "
                "Click a component to see how it's rated.")
 
@@ -236,13 +236,13 @@ def _render_lesson_body(result: dict, on_generate_ai) -> None:
                                         ("mini_quiz", "Mini-Quiz"), ("overall", "Overall")]):
             with cols[i]:
                 v = parts.get(k, 0)
-                st.metric(label, f"{v:.1f}/5" if v else "—")
+                st.metric(label, f"{v:.1f}" if v else "—")
         fa = [r for r in result.get("flow_a_results", []) if r.get("rating") != "Pending"]
         if fa:
             st.caption("Teacher item-level ratings:")
             for item in fa:
                 st.markdown(f"- **{item.get('item_ref','')}** — {_rag(item.get('rating',''))} "
-                            f"{float(item.get('score') or 0):.1f}/5 "
+                            f"{float(item.get('score') or 0):.1f} "
                             f"· {item.get('teacher_count',0)} teacher(s)")
 
         # ── Teacher divergence — where reviewers disagree (spread > 1.5) ──────
@@ -266,16 +266,30 @@ def _render_lesson_body(result: dict, on_generate_ai) -> None:
             st.write(cr.get("rationale", ""))
         else:
             st.caption("No classroom review matched this lesson yet.")
+        notes = result.get("classroom_notes") or []
+        if notes:
+            st.markdown("**Teacher notes from the classroom:**")
+            for nt in notes:
+                head = " · ".join(x for x in [nt.get("teacher"), nt.get("date")] if x)
+                if head:
+                    st.markdown(f"_{head}_")
+                if nt.get("learning"):
+                    st.markdown(f"- **Learning:** {nt['learning']}")
+                if nt.get("practice"):
+                    st.markdown(f"- **Practice:** {nt['practice']}")
+                if nt.get("instances"):
+                    st.markdown(f"- **Notable:** {nt['instances']}")
 
     # 3 ── Exit-ticket data
     with st.expander(_comp_header("exit_data", "📝", health), expanded=False):
         ed = result.get("exit_data")
         if ed:
             st.markdown(f"**{ed.get('pct', 0):.0f}%** exit-ticket performance  →  "
-                        f"**{ed.get('score_5', 0):.1f}/5**")
+                        f"**{ed.get('score_5', 0):.1f}**")
             st.caption(f"Mean of (avg-score ÷ max-score) × 100 across "
                        f"{ed.get('n_items', 0)} exit item(s) / {ed.get('n_widgets', 0)} widget(s), "
                        "then scaled linearly to 1–5 (100% = 5.0).")
+            st.markdown(f"👥 **{ed.get('students', 0)} student(s)** attempted this exit ticket.")
         else:
             st.info("No exit-ticket data matched this lesson.")
 
@@ -297,7 +311,7 @@ def _render_ai_review(result: dict, on_generate_ai) -> None:
 
     ai_score = ai.get("ai_score")
     if ai_score is not None:
-        st.markdown(f"**AI score: {float(ai_score):.1f}/5** · {ai.get('final_rating','')} "
+        st.markdown(f"**AI score: {float(ai_score):.1f}** · {ai.get('final_rating','')} "
                     "— reviewed per learning item against the gold-standard framework")
     if ai.get("confidence_note"):
         st.caption(ai["confidence_note"])
@@ -308,7 +322,7 @@ def _render_ai_review(result: dict, on_generate_ai) -> None:
             if not isinstance(it, dict):
                 continue
             sc = it.get("score")
-            sc_txt = f"{float(sc):.1f}/5" if isinstance(sc, (int, float)) else "—"
+            sc_txt = f"{float(sc):.1f}" if isinstance(sc, (int, float)) else "—"
             emoji = _RAG_EMOJI.get(_rating_from(sc), "⚪")
             st.markdown(f"**{emoji} {it.get('reference','item')} — {sc_txt}**")
             checks = it.get("checks") or {}

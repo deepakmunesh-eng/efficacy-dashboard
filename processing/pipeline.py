@@ -33,7 +33,9 @@ from utils.helpers import normalize_name
 # matched to lessons by learnosity_activity_ref == Activity Reference ID.
 # v14: Pending lessons also run Flow A (expose learning item refs) so the
 # content-based AI review can cover them; health stays Pending.
-_LOGIC_VERSION = "v14"
+# v15: classroom code→score mapping aligned to the "classroom ratings.txt" rubric;
+# classroom teacher notes + exit-ticket student counts surfaced.
+_LOGIC_VERSION = "v15"
 
 
 def run_pipeline(force: bool = False, progress=None, warn=None) -> dict:
@@ -178,7 +180,17 @@ def run_pipeline(force: bool = False, progress=None, warn=None) -> dict:
             _w(f"Flow B failed for {activity_ref}: {exc}")
             result = {"activity_ref": activity_ref, "final_rating": "Average", "error": str(exc)}
 
-        result["exit_data"]      = exit_info            # {pct, score_5, n_items, n_widgets} or None
+        result["exit_data"]      = exit_info            # {pct, score_5, n_items, n_widgets, students} or None
+        # Teacher free-text from the classroom reviews (shown in the Class review section).
+        result["classroom_notes"] = [
+            {"teacher": r.get("teacher_name", ""), "student": r.get("student_name", ""),
+             "date": r.get("class_date", ""),
+             "learning": (r.get("learning_notes") or "").strip(),
+             "practice": (r.get("practice_notes") or "").strip(),
+             "instances": (r.get("specific_instances") or "").strip()}
+            for r in classroom
+            if any((r.get(f) or "").strip() for f in ("learning_notes", "practice_notes", "specific_instances"))
+        ]
         result["status"]         = "Complete"
         result["review_date"]    = lesson_rows[0].get("review_date", "")
         result["error_reports"]  = lesson_errors

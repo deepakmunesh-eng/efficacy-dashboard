@@ -22,7 +22,8 @@ import requests
 
 from config.settings import EXIT_TICKET_XLSX_URL
 
-_SUMMARY_TAB = "summary"
+_SUMMARY_TAB = "summary"      # one row per widget: avg-score / max-score
+_RAW_TAB     = "ET-data-raw"  # one row per student attempt (for student counts)
 # header text (lowercased/stripped) → field
 _COLS = {
     "learnosity_activity_ref": "activity_ref",
@@ -31,6 +32,27 @@ _COLS = {
     "avg-score":               "avg_score",
     "max-score":               "max_score",
 }
+
+
+def _students_by_activity(xl) -> dict:
+    """Approx. students who attempted each activity's exit ticket = the max number
+    of attempt rows on any single widget of that activity (every student attempts
+    the first widget; later widgets may have fewer)."""
+    try:
+        df = xl.parse(_RAW_TAB, header=0, dtype=str)
+    except Exception:  # noqa: BLE001
+        return {}
+    cols = {str(c).strip().lower(): c for c in df.columns}
+    ac = cols.get("learnosity_activity_ref"); wc = cols.get("widget_ref")
+    if not ac or not wc:
+        return {}
+    from collections import Counter, defaultdict
+    per_widget: dict = defaultdict(Counter)     # activity -> Counter(widget -> rows)
+    for act, wid in zip(df[ac].astype(str), df[wc].astype(str)):
+        act = act.strip()
+        if act:
+            per_widget[act][wid.strip()] += 1
+    return {act: (max(c.values()) if c else 0) for act, c in per_widget.items()}
 
 
 def _to_float(x):
@@ -51,6 +73,7 @@ def fetch_exit_ticket_scores() -> dict[str, dict]:
             print(f"[exit_ticket_reader] '{_SUMMARY_TAB}' tab not found")
             return {}
         df = xl.parse(_SUMMARY_TAB, header=0, dtype=str)
+        students = _students_by_activity(xl)
     except Exception as exc:  # noqa: BLE001
         print(f"[exit_ticket_reader] fetch failed: {exc}")
         return {}
@@ -90,5 +113,6 @@ def fetch_exit_ticket_scores() -> dict[str, dict]:
             "score_5":   round(pct * 5.0 / 100.0, 2),
             "n_items":   len(by_item),
             "n_widgets": sum(len(ws) for ws in by_item.values()),
+            "students":  int(students.get(act, 0)),
         }
     return out

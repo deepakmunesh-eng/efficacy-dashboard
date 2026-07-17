@@ -11,7 +11,7 @@ import re
 
 import streamlit as st
 
-from processing.health import rollup, HEALTH_LABELS, HEALTH_WEIGHTS
+from processing.health import rollup, HEALTH_LABELS
 
 _RAG_EMOJI = {"Good": "🟢", "Average": "🟡", "Bad": "🔴", "Pending": "⚪", "N/A": "⚪"}
 _CHECK_LABELS = {
@@ -198,13 +198,12 @@ def _render_lesson_list(tree, grade, chapter, nav, mode) -> None:
 # ── Lesson detail ────────────────────────────────────────────────────────────
 
 def _comp_header(key: str, emoji: str, health: dict) -> str:
-    """Expander title for a health component — shows its score + weight, or 'n/a'."""
+    """Expander title for a health component — shows its score, or 'n/a'."""
     comps = health.get("components", {})
-    weights = health.get("weights", {})
     name = HEALTH_LABELS[key]
     if key in comps:
-        return f"{emoji}  {name}  —  {comps[key]:.1f}   ·   {weights[key]}% of health"
-    return f"{emoji}  {name}  —  not available   ·   {HEALTH_WEIGHTS[key]}% redistributed"
+        return f"{emoji}  {name}  —  {comps[key]:.1f}"
+    return f"{emoji}  {name}  —  not available"
 
 
 def _render_lesson_body(result: dict, on_generate_ai) -> None:
